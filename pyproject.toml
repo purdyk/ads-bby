@@ -1,0 +1,15 @@
+[project]
+name = "ads-bby"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "opensky-api",
+    "pillow>=11.3.0",
+    "requests>=2.32.5",
+]
+
+[tool.uv.sources]
+opensky-api = { git = "https://github.com/openskynetwork/opensky-api", subdirectory = "python" }
+#rgbmatrix = { git = "https://github.com/hzeller/rpi-rgb-led-matrix", subdirectory = "bindings/python" }
