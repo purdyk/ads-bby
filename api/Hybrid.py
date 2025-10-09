@@ -191,7 +191,7 @@ class HybridAPI:
                     # Find aircraft that need FlightAware data
                     unenriched = [
                         icao24 for icao24 in self.current_aircraft.keys()
-                        if icao24 not in self.aircraft_with_flightaware
+                        if self.current_aircraft[icao24].flightaware is None
                         and self.current_aircraft[icao24].opensky.callsign  # Only if we have a callsign
                     ]
 
@@ -244,25 +244,38 @@ class HybridAPI:
 
             response = requests.get(url, headers=headers, timeout=10)
 
+            print(f"fetched: {url}\nresponse: {response.status_code}")
+
             if response.status_code == 200:
+                # Any response marks the aircraft as loaded
+                with self.lock:
+                    self.current_aircraft[icao24].flightaware = FlightAwareData()
+
                 data = response.json()
+                if data is None:
+                    return
+
+                flight = data.get('flights', []).get(0, {})
+                origin = flight.get('origin', {})
+                origin_apt = origin.get('code', '?')
+                dest = flight.get('destination', {})
+                dest_apt = dest.get('code', '?')
 
                 # Parse FlightAware response and create FlightAwareData
                 # Note: Actual field names depend on FA API response structure
                 fa_data = FlightAwareData(
-                    airline=data.get('operator'),
-                    flight_number=data.get('flight_number'),
-                    aircraft_type=data.get('aircraft_type'),
-                    origin_airport=data.get('origin', {}).get('code'),
-                    destination_airport=data.get('destination', {}).get('code'),
-                    estimated_arrival_time=self._parse_fa_datetime(data.get('estimated_arrival')),
-                    departure_time=self._parse_fa_datetime(data.get('actual_departure'))
+                    airline=flight.get('operator', '?'),
+                    flight_number=flight.get('flight_number', '?'),
+                    aircraft_type=flight.get('aircraft_type', '?'),
+                    origin_airport=origin_apt,
+                    destination_airport=dest_apt,
+                    estimated_arrival_time=self._parse_fa_datetime(flight.get('estimated_arrival', '')),
+                    departure_time=self._parse_fa_datetime(flight.get('actual_departure', ''))
                 )
 
                 with self.lock:
                     if icao24 in self.current_aircraft:
                         self.current_aircraft[icao24].flightaware = fa_data
-                        self.aircraft_with_flightaware.add(icao24)
                         self._notify_observers()
 
         except Exception as e:
@@ -305,10 +318,10 @@ class HybridAPI:
 if __name__ == "__main__":
     # Example configuration for Corvallis area
     config = HybridAPIConfig(
-        home_latitude=37.7749,
-        home_longitude=-122.4194,
-        # home_latitude=44.59000326746005,
-        # home_longitude=-123.30320891807465,
+        # home_latitude=37.7749,
+        # home_longitude=-122.4194,
+        home_latitude=44.59000326746005,
+        home_longitude=-123.30320891807465,
         radius_km=25,
         opensky_username=None,  # Optional for better rate limits
         opensky_password=None,
