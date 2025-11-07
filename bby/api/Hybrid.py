@@ -1,14 +1,15 @@
 import threading
 import time
-from typing import Dict, List, Optional, Set, Callable
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Callable
 from datetime import datetime
 import requests
 import os
-import sys
 import math
 
-from models.BbyCfg import BBYConfig
+from bby.models.BbyCfg import BBYConfig
+from bby.models.Aircraft import Aircraft, OpenSkyData, FlightAwareData
+from opensky_api import OpenSkyApi
+# from bby.models.Position import Position
 
 # Hybrid API driver
 # Loads initial results from low-cost, low data API
@@ -19,11 +20,8 @@ from models.BbyCfg import BBYConfig
 # Ideally provides some observable stream of "current aircraft" and automatically manages loading extra information once per new aircraft, with appropriate error handling
 
 # Add parent directory to path to import models
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from opensky_api import OpenSkyApi
-from models.Aircraft import Aircraft, OpenSkyData, FlightAwareData
-from models.Position import Position
 
 
 class HybridAPI:
@@ -115,7 +113,7 @@ class HybridAPI:
                     self._process_opensky_states(states.states)
 
                 # Sleep for configured interval
-                time.sleep(self.config.opensky_refresh_interval)
+                time.sleep(self.config.api.opensky_refresh_interval)
 
             except Exception as e:
                 print(f"Error polling OpenSky API: {e}")
@@ -207,7 +205,7 @@ class HybridAPI:
             # Remove requests older than 1 minute
             self.fa_request_times = [t for t in self.fa_request_times if now - t < 60]
 
-            if len(self.fa_request_times) < self.config.max_flightaware_requests_per_minute:
+            if len(self.fa_request_times) < self.config.api.max_flightaware_requests_per_minute:
                 self.fa_request_times.append(now)
                 return True
             return False
@@ -222,7 +220,7 @@ class HybridAPI:
             # Make FlightAware API request
             # Note: This is a simplified version - actual FA API might require different endpoints
             headers = {
-                'x-apikey': self.config.flightaware_api_key
+                'x-apikey': self.config.api.flightaware_api_key
             }
 
             # Try to get flight info by callsign (flight identifier)
@@ -242,20 +240,20 @@ class HybridAPI:
                 if data is None:
                     return
 
-                flights = data.get('flights', [])
+                flights = data.get('flights') or []
                 flights.append({})
                 flight = flights[0]
-                origin = flight.get('origin', {})
-                origin_apt = origin.get('code', '?')
-                dest = flight.get('destination', {})
-                dest_apt = dest.get('code', '?')
+                origin = flight.get('origin') or {}
+                origin_apt = origin.get('code', None)
+                dest = flight.get('destination') or {}
+                dest_apt = dest.get('code', None)
 
                 # Parse FlightAware response and create FlightAwareData
                 # Note: Actual field names depend on FA API response structure
                 fa_data = FlightAwareData(
-                    airline=flight.get('operator', '?'),
-                    flight_number=flight.get('flight_number', '?'),
-                    aircraft_type=flight.get('aircraft_type', '?'),
+                    airline=flight.get('operator', None),
+                    flight_number=flight.get('flight_number', None),
+                    aircraft_type=flight.get('aircraft_type', None),
                     origin_airport=origin_apt,
                     destination_airport=dest_apt,
                     estimated_arrival_time=self._parse_fa_datetime(flight.get('estimated_arrival', '')),
@@ -307,19 +305,19 @@ class HybridAPI:
 # Example usage
 if __name__ == "__main__":
     # Example configuration for Corvallis area
-    config = HybridAPIConfig(
-        dict(
-            home_latitude=37.7749,
-            home_longitude=-122.4194,
-            # home_latitude=44.59000326746005,
-            # home_longitude=-123.30320891807465,
-            radius_km=25,
-            opensky_username=None,  # Optional for better rate limits
-            opensky_password=None,
-            flightaware_api_key=os.getenv("FLIGHTAWARE_API_KEY"),  # Set via environment
-            opensky_refresh_interval=30
-        )
-    )
+    config = BBYConfig()
+    #     dict(
+    #         home_latitude=37.7749,
+    #         home_longitude=-122.4194,
+    #         # home_latitude=44.59000326746005,
+    #         # home_longitude=-123.30320891807465,
+    #         radius_km=25,
+    #         opensky_username=None,  # Optional for better rate limits
+    #         opensky_password=None,
+    #         flightaware_api_key=os.getenv("FLIGHTAWARE_API_KEY"),  # Set via environment
+    #         opensky_refresh_interval=30
+    #     )
+    # )
 
     def on_aircraft_update(aircraft: List[Aircraft]):
         print(f"Aircraft update: {len(aircraft)} aircraft in range")

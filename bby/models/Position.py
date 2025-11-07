@@ -47,7 +47,7 @@ class Position:
     def is_approaching(self, other: 'Position', threshold_degrees: float = 90) -> bool:
         """
         Determine if aircraft is approaching a point based on heading and bearing.
-        Returns True if approaching, False if departing, None if cannot determine.
+        Returns True if approaching, False if departing
         """
         bearing_to_point = self.calculate_bearing_to(other)
 

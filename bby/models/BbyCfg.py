@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
-from models.Position import Position
-
+from bby.models.Position import Position
 
 @dataclass
 class DisplayConfig:
@@ -41,13 +40,20 @@ class ApiConfig:
     opensky_refresh_interval: int = 30  # seconds
     max_flightaware_requests_per_minute: int = 10
 
+    def __init__(self, dict: Dict):
+        self.radius_km = dict["radius_km"]
+        self.opensky_username = dict["opensky_username"]
+        self.opensky_password = dict["opensky_password"]
+        self.flightaware_api_key = dict["flightaware_api_key"]
+        self.opensky_refresh_interval = dict["opensky_refresh_interval"]
+        self.max_flightaware_requests_per_minute = dict["max_flightaware_requests_per_minute"]
+
 @dataclass
 class BBYConfig:
     """Configuration for the ADS-BBY system."""
     display: DisplayConfig
     home: HomeConfig
     api: ApiConfig
-
 
     def __init__(self, dict: Dict):
         self.display = DisplayConfig(dict['display'])

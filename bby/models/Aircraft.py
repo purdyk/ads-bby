@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 from datetime import datetime
 import math
-from models.Position import Position
+from bby.models.Position import Position
 
 # Represents a single aircraft provided from the hybrid api
 # Includes directly provided information
@@ -159,6 +159,38 @@ class Aircraft:
             return self.opensky.callsign.strip()
         else:
             return self.opensky.icao24.upper()
+
+    def get_type(self) -> str:
+        if self.flightaware and self.flightaware.aircraft_type:
+            return self.flightaware.aircraft_type
+        else:
+            return self.get_aircraft_category_name()
+
+    def get_origin_airport(self) -> str:
+        """Return the origin airport name."""
+        if self.flightaware and self.flightaware.origin_airport:
+            return self.flightaware.origin_airport
+        else:
+            return self.opensky.origin_country
+
+    def get_dest_airport(self) -> str:
+        """Return the destination airport name."""
+        if self.flightaware and self.flightaware.destination_airport:
+            return self.flightaware.destination_airport
+        else:
+            return "?"
+
+    def get_vrate_symbol(self) -> str:
+        vrate = self.get_vertical_rate_fpm()
+        if vrate:
+            if vrate > 100:
+                return "^"
+            elif vrate < -100:
+                return "▼"
+            else:
+                return "-"
+        else:
+            return ""
 
     def get_aircraft_category_name(self) -> str:
         """Convert category number to human-readable string."""

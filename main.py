@@ -1,13 +1,13 @@
 from time import sleep
 
-from api.Hybrid import HybridAPI
-from display.Renderer import (DisplayCompositor)
+from bby.api.Hybrid import HybridAPI
+from bby.display.Renderer import (DisplayCompositor)
 from json import load
 from typing import List
 
-from models.Aircraft import Aircraft
-from models.BbyCfg import BBYConfig
-from models.Position import Position
+from bby.models.Aircraft import Aircraft
+from bby.models.BbyCfg import BBYConfig
+from bby.models.Position import Position
 
 def main():
     print("Hello from ads-bby!")
@@ -21,7 +21,7 @@ def main():
     config = BBYConfig(config)
     api = HybridAPI(config)
 
-    compositor = DisplayCompositor(Position(latitude= config.home.latitude, longitude=config.home.longitude))
+    compositor = DisplayCompositor(home=Position(latitude= config.home.latitude, longitude=config.home.longitude), config = config.display)
 
     def onApiUpdate(newAircraft: List[Aircraft]):
         print(f"found {len(newAircraft)}")
