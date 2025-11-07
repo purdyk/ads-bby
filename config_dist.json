@@ -1,0 +1,22 @@
+{
+  "display": {
+    "width": 64,
+    "height": 32,
+    "mapping": "adafruit-hat",
+    "name": "Ads-BBY"
+  },
+
+  "home": {
+    "latitude": 45.508541,
+    "longitude": -122.649431
+  },
+
+  "api": {
+    "radius": 24.9,
+    "opensky_username": null,
+    "opensky_password": null,
+    "flightaware_api_key": null,
+    "opensky_refresh_interval": 30,
+    "max_flightaware_requests_per_minute": 10
+  }
+}

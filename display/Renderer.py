@@ -1,6 +1,3 @@
-from multiprocessing.pool import worker
-
-from PIL import Image, ImageDraw, ImageFont
 from typing import List, Optional, Tuple
 from datetime import datetime
 import os
@@ -24,7 +21,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.Aircraft import Aircraft
 from models.Position import Position
-
+from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions
 
 class AircraftRenderer:
     """Base class for rendering aircraft information."""
@@ -35,9 +32,11 @@ class AircraftRenderer:
         self.height = height
         self.frame_count = 0
 
-    def get_strobe_color(self, is_approaching: bool, frame_count: int) -> Tuple[int, int, int]:
-        """Get strobing color based on approach status and frame count."""
-        # Strobe every 10 frames
+
+    def get_strobe_color(self, is_approaching: bool, current_time: float) -> Tuple[int, int, int]:
+        """Get text color based on approach status and frame count."""
+        # Based on current time, use a 8 second window, go to white at 4 seconds, interpolate the color from full red
+        # or full green to white, exponentially as the time approaches or withdraws from the 4 second asymptote
         if (frame_count // 10) % 2 == 0:
             return (255, 255, 255)  # White
         else:
@@ -60,9 +59,8 @@ class AircraftRenderer:
     def get_direction_arrow(self, is_approaching: Optional[bool]) -> str:
         """Get arrow character based on approach status."""
         if is_approaching is None:
-            return ""
+            return "-"
         return "↓" if is_approaching else "↑"
-
 
 class LargeAircraftRenderer(AircraftRenderer):
     """Renderer for the primary aircraft display (top 16 pixels)."""
@@ -70,62 +68,55 @@ class LargeAircraftRenderer(AircraftRenderer):
     def __init__(self, home: Position, width: int = 64, height: int = 16):
         super().__init__(home, width, height)
         try:
-            # Try to use a small bitmap font, fallback to default if not available
-            self.font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 10)
-            self.font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 8)
+            self.font_large = graphics.Font()
+            self.font_large.LoadFont("../../../fonts/6x10.bdf")
+            self.font_small = graphics.Font()
+            self.font_small.LoadFont("../../../fonts/4x6.bdf")
         except:
-            self.font_large = ImageFont.load_default()
-            self.font_small = ImageFont.load_default()
+            print("Failed to load font, yikes")
 
-    def render(self, aircraft: Aircraft, position: Position,
-               image: Image.Image, x: int, y: int, frame_count: int) -> None:
-        """Render large aircraft display at specified position."""
-        draw = ImageDraw.Draw(image)
+    def render(self, aircraft: Aircraft, position: Position, distance: float,
+               canvas: FrameCanvas, x: int, y: int, ) -> None:
+        """
+        Render large aircraft display at specified position.
+        Designed to take up roughly half the vertical space and all the horizontal space. This is highly detailed
+        """
 
         # Calculate current distance from projected position
-        distance = self.home.calculate_distance(position)
         is_approaching = position.is_approaching(self.home)
 
         # Get strobe color for text
         text_color = self.get_strobe_color(is_approaching, frame_count)
 
-        # Line 1: Flight identifier (0-5 pixels)
+        # Line 1: Flight identifier (0-5 pixels), distance, speed
         flight_name = aircraft.get_display_name()
-        draw.text((x + 1, y), flight_name[:8], fill=text_color, font=self.font_small)
-
-        # Direction arrow at the right
-        arrow = self.get_direction_arrow(is_approaching)
-        if arrow:
-            draw.text((x + 58, y), arrow, fill=text_color, font=self.font_small)
-
-        # Line 2: Distance, altitude, speed (6-11 pixels)
         distance_str = self.format_distance(distance)
-        altitude_str = f"{int(aircraft.get_altitude_ft() or 0):,}ft" if aircraft.get_altitude_ft() else "--ft"
         speed_str = f"{int(aircraft.get_speed_knots() or 0)}kt" if aircraft.get_speed_knots() else "--kt"
 
-        # Split the line into three parts
-        draw.text((x + 1, y + 6), distance_str, fill=text_color, font=self.font_small)
-        draw.text((x + 22, y + 6), altitude_str, fill=text_color, font=self.font_small)
-        draw.text((x + 44, y + 6), speed_str, fill=text_color, font=self.font_small)
+        line1 = f"{flight_name[:8]} {distance_str} {speed_str}"
+        len = graphics.DrawText(canvas, self.font_large, x, y, text_color, line1)
 
-        # Line 3: Aircraft type or category (12-15 pixels)
+        # Line 2: Aircraft type, Origin, Destination, V-rate
+        # altitude_str = f"{int(aircraft.get_altitude_ft() or 0):,}ft" if aircraft.get_altitude_ft() else "--ft"
         if aircraft.flightaware and aircraft.flightaware.aircraft_type:
             type_str = aircraft.flightaware.aircraft_type[:10]
         else:
             type_str = aircraft.get_aircraft_category_name()[:10]
-        draw.text((x + 1, y + 12), type_str, fill=text_color, font=self.font_small)
+        origin = aircraft.flightaware.origin_airport or "?"
+        dest = aircraft.flightaware.destination_airport or "?"
 
-        # Vertical rate indicator on the right
+        vrate_symbol = ""
         vrate = aircraft.get_vertical_rate_fpm()
         if vrate:
             if vrate > 100:
-                vrate_symbol = "↗"
+                vrate_symbol = " ↗"
             elif vrate < -100:
-                vrate_symbol = "↘"
+                vrate_symbol = " ↘"
             else:
-                vrate_symbol = "→"
-            draw.text((x + 58, y + 12), vrate_symbol, fill=text_color, font=self.font_small)
+                vrate_symbol = " →"
 
+        line2 = f"{type_str}: {origin} → {dest}{vrate_symbol}"
+        len = graphics.DrawText(canvas, self.font_small, x, y + self.font_large.height + 1, text_color, line2)
 
 
 class SmallAircraftRenderer(AircraftRenderer):
@@ -134,43 +125,52 @@ class SmallAircraftRenderer(AircraftRenderer):
     def __init__(self, home: Position, width: int = 16, height: int = 16):
         super().__init__(home, width, height)
         try:
-            self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 7)
+            self.font = graphics.Font()
+            self.font.LoadFont("../../../fonts/4x6.bdf")
         except:
-            self.font = ImageFont.load_default()
+            print("Failed to load font, yikes")
+
 
     def render(self, aircraft: Aircraft, position: Position,
-               image: Image.Image, x: int, y: int, frame_count: int) -> None:
+               canvas: FrameCanvas, x: int, y: int, current_time: float) -> None:
         """Render small aircraft display in 16x16 grid."""
-        draw = ImageDraw.Draw(image)
 
         # Calculate current distance
         distance = self.home.calculate_distance(position)
         is_approaching = position.is_approaching(self.home)
 
         # Get strobe color
-        text_color = self.get_strobe_color(is_approaching, frame_count)
+        text_color = self.get_strobe_color(is_approaching, current_time)
 
         # Draw border for this aircraft cell
-        draw.rectangle([x, y, x + 15, y + 15], outline=(64, 64, 64))
+        # draw.rectangle([x, y, x + 15, y + 15], outline=(64, 64, 64))
 
         # Line 1: Shortened flight ID (1-6 pixels)
-        flight_name = aircraft.get_display_name()
-        if len(flight_name) > 5:
-            flight_name = flight_name[:5]
-        draw.text((x + 1, y + 1), flight_name, fill=text_color, font=self.font)
+        flight_name = aircraft.get_display_name()[:4]
+        # if len(flight_name) > 5:
+        #     flight_name = flight_name[:5]
+        # draw.text((x + 1, y + 1), flight_name, fill=text_color, font=self.font)
 
-        # Line 2: Distance (7-11 pixels)
-        distance_str = self.format_distance(distance)[:5]
-        draw.text((x + 1, y + 7), distance_str, fill=text_color, font=self.font)
+        graphics.DrawText(canvas, self.font, x, y, text_color, flight_name)
 
-        # Direction indicator (bottom right)
-        arrow = "↓" if is_approaching else "↑"
-        draw.text((x + 11, y + 10), arrow, fill=text_color, font=self.font)
+        # Line 2: Distance
+        distance_str = self.format_distance(distance)[:4]
+        graphics.DrawText(canvas, self.font, x, y + self.font.height + 1, text_color, distance_str)
 
-
+        # # Direction indicator (bottom right)
+        # arrow = "↓" if is_approaching else "↑"
+        # draw.text((x + 11, y + 10), arrow, fill=text_color, font=self.font)
 
 class DisplayCompositor:
     """Composites multiple aircraft renderers into a single display."""
+
+    """
+    Clients can set this property to update the list of rendered aircrafts.
+    The compositor will choose which to display, and what properties to show.
+    It expects timestamps on the aircraft to be relevant to local time for extrapolation.
+    
+    """
+    aircraft: List[Aircraft]
 
     def __init__(self, home: Position, width: int = 64, height: int = 32):
         self.width = width
@@ -179,22 +179,34 @@ class DisplayCompositor:
         self.large_renderer = LargeAircraftRenderer(home = home, width = width, height = int(height / 2))
         self.small_renderer = SmallAircraftRenderer(home = home, width = int(width / 4), height = int(height / 2))
         self.frame_count = 0
-        try:
-            self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
-        except:
-            self.font = ImageFont.load_default()
+        self.aircraft = []
 
-    def render_frame(self, aircraft_list: List[Aircraft], home_lat: float, home_lon: float) -> Image.Image:
+        # Renderers should load their own fonts
+
+        # Init the matrix with width and height
+
+    def run(self):
+        # Maybe init a few things
+        offscreen_canvas = self.matrix.CreateFrameCanvas()
+
+        while True:
+            render_frame(offscreen_canvas, aircraft)
+            offscreen_canvas = self.matrix.SwapOnVsync(offscreen_canvas, self.aircraft)
+
+
+    def render_frame(self, canvas: FrameCanvas, aircraft_list: List[Aircraft]) -> Image.Image:
         """Render a complete frame with all aircraft."""
         # Create black background
-        image = Image.new('RGB', (self.width, self.height), color=(0, 0, 0))
+        canvas.Clear()
 
         if len(aircraft_list) == 0:
             # Show screensaver or "No Aircraft" message
-            draw = ImageDraw.Draw(image)
-
-            draw.text((8, 12), "No Aircraft", fill=(128, 128, 128), font=self.font)
-            return image
+            # draw = ImageDraw.Draw(image)
+            #
+            # draw.text((8, 12), "No Aircraft", fill=(128, 128, 128), font=self.font)
+            # return image
+            # TODO screensaver
+            print("No aircrafts")
 
         # Get current positions for all aircraft
         current_time = datetime.now().timestamp()
@@ -218,8 +230,8 @@ class DisplayCompositor:
         if aircraft_with_positions:
             primary = aircraft_with_positions[0]
             self.large_renderer.render(
-                primary[0], primary[1],
-                image, 0, 0, self.frame_count
+                primary[0], primary[1], primary[2],
+                canvas, 0, 0, current_time
             )
 
         # Render up to 4 secondary aircraft in bottom half (2x2 grid of 16x16)
@@ -234,9 +246,6 @@ class DisplayCompositor:
             if i + 1 < len(aircraft_with_positions):
                 secondary = aircraft_with_positions[i + 1]
                 self.small_renderer.render(
-                    secondary[0], secondary[1],
-                    image, pos[0], pos[1], self.frame_count
+                    secondary[0], secondary[1], secondary[2],
+                    canvas, pos[0], pos[1], current_time
                 )
-
-        self.frame_count += 1
-        return image

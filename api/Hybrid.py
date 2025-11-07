@@ -8,6 +8,8 @@ import os
 import sys
 import math
 
+from models.BbyCfg import BBYConfig
+
 # Hybrid API driver
 # Loads initial results from low-cost, low data API
 # Loads supplemental information per-aircraft from higher cost
@@ -24,38 +26,24 @@ from models.Aircraft import Aircraft, OpenSkyData, FlightAwareData
 from models.Position import Position
 
 
-@dataclass
-class HybridAPIConfig:
-    """Configuration for the Hybrid API driver."""
-    home_latitude: float
-    home_longitude: float
-    radius_km: float = 50.0  # Default 50km radius
-    opensky_username: Optional[str] = None
-    opensky_password: Optional[str] = None
-    flightaware_api_key: Optional[str] = None
-    opensky_refresh_interval: int = 30  # seconds
-    max_flightaware_requests_per_minute: int = 10
-
-
 class HybridAPI:
     """
     Hybrid API driver that combines OpenSky (free/low-cost) and FlightAware (paid) data.
     Provides a stream of aircraft with automatic supplemental data loading.
     """
 
-    def __init__(self, config: HybridAPIConfig):
+    def __init__(self, config: BBYConfig):
         self.config = config
-        self.home = Position(config.home_longitude, config.home_latitude)
+        self.home = config.home.position
 
         # Initialize OpenSky API
         self.opensky_api = OpenSkyApi(
-            username=config.opensky_username,
-            password=config.opensky_password
+            username=config.api.opensky_username,
+            password=config.api.opensky_password
         )
 
         # Aircraft tracking
         self.current_aircraft: Dict[str, Aircraft] = {}  # icao24 -> Aircraft
-        self.aircraft_with_flightaware: Set[str] = set()  # icao24s that have FA data
         self.lock = threading.Lock()
 
         # Callbacks for aircraft updates
@@ -76,13 +64,13 @@ class HybridAPI:
         R = 6371.0
 
         # Convert radius to degrees (approximation)
-        lat_delta = self.config.radius_km / R * (180 / math.pi)
-        lon_delta = self.config.radius_km / (R * math.cos(math.radians(self.config.home_latitude))) * (180 / math.pi)
+        lat_delta = self.config.api.radius_km / R * (180 / math.pi)
+        lon_delta = self.config.api.radius_km / (R * math.cos(math.radians(self.config.home.latitude))) * (180 / math.pi)
 
-        min_lat = self.config.home_latitude - lat_delta
-        max_lat = self.config.home_latitude + lat_delta
-        min_lon = self.config.home_longitude - lon_delta
-        max_lon = self.config.home_longitude + lon_delta
+        min_lat = self.config.home.latitude - lat_delta
+        max_lat = self.config.home.latitude + lat_delta
+        min_lon = self.config.home.longitude - lon_delta
+        max_lon = self.config.home.longitude + lon_delta
 
         # OpenSky expects (min_lat, max_lat, min_lon, max_lon)
         return min_lat, max_lat, min_lon, max_lon
@@ -99,7 +87,7 @@ class HybridAPI:
         self.opensky_thread.start()
 
         # Start FlightAware enrichment thread if API key is provided
-        if self.config.flightaware_api_key:
+        if self.config.api.flightaware_api_key:
             print("starting flightaware enrichment")
             self.flightaware_thread = threading.Thread(target=self._flightaware_enrich_loop, daemon=True)
             self.flightaware_thread.start()
@@ -178,7 +166,6 @@ class HybridAPI:
             for icao24 in list(self.current_aircraft.keys()):
                 if icao24 not in current_icao24s:
                     del self.current_aircraft[icao24]
-                    self.aircraft_with_flightaware.discard(icao24)
 
             # Notify observers
             self._notify_observers()
@@ -255,7 +242,9 @@ class HybridAPI:
                 if data is None:
                     return
 
-                flight = data.get('flights', []).get(0, {})
+                flights = data.get('flights', [])
+                flights.append({})
+                flight = flights[0]
                 origin = flight.get('origin', {})
                 origin_apt = origin.get('code', '?')
                 dest = flight.get('destination', {})
@@ -281,7 +270,8 @@ class HybridAPI:
         except Exception as e:
             print(f"Error enriching {icao24} with FlightAware data: {e}")
 
-    def _parse_fa_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
+    @staticmethod
+    def _parse_fa_datetime(dt_str: Optional[str]) -> Optional[datetime]:
         """Parse FlightAware datetime string."""
         if not dt_str:
             return None
@@ -318,15 +308,17 @@ class HybridAPI:
 if __name__ == "__main__":
     # Example configuration for Corvallis area
     config = HybridAPIConfig(
-        # home_latitude=37.7749,
-        # home_longitude=-122.4194,
-        home_latitude=44.59000326746005,
-        home_longitude=-123.30320891807465,
-        radius_km=25,
-        opensky_username=None,  # Optional for better rate limits
-        opensky_password=None,
-        flightaware_api_key=os.getenv("FLIGHTAWARE_API_KEY"),  # Set via environment
-        opensky_refresh_interval=30
+        dict(
+            home_latitude=37.7749,
+            home_longitude=-122.4194,
+            # home_latitude=44.59000326746005,
+            # home_longitude=-123.30320891807465,
+            radius_km=25,
+            opensky_username=None,  # Optional for better rate limits
+            opensky_password=None,
+            flightaware_api_key=os.getenv("FLIGHTAWARE_API_KEY"),  # Set via environment
+            opensky_refresh_interval=30
+        )
     )
 
     def on_aircraft_update(aircraft: List[Aircraft]):

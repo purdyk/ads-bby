@@ -8,8 +8,22 @@ dependencies = [
     "opensky-api",
     "pillow>=11.3.0",
     "requests>=2.32.5",
+    # Platform-specific dependency for Raspberry Pi
+    "rgbmatrix ; sys_platform == 'linux' and (platform_machine == 'aarch64' or platform_machine == 'armv7l' or platform_machine == 'armv6l')",
 ]
+
+[project.optional-dependencies]
+# Development dependencies (for local development without LED matrix)
+dev = []
+# Runtime dependencies for Raspberry Pi
+rpi = [
+    "rgbmatrix",
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
 opensky-api = { git = "https://github.com/openskynetwork/opensky-api", subdirectory = "python" }
-#rgbmatrix = { git = "https://github.com/hzeller/rpi-rgb-led-matrix", subdirectory = "bindings/python" }
+rgbmatrix = { git = "https://github.com/hzeller/rpi-rgb-led-matrix", subdirectory = "bindings/python" }
