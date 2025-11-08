@@ -1,7 +1,14 @@
-from typing import List, Optional, Tuple
+import time
 from datetime import datetime
-import os
-import sys
+from typing import List, Optional, Tuple
+
+from PIL import Image
+from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions, FrameCanvas
+
+from bby.models.Aircraft import Aircraft
+from bby.models.BbyCfg import DisplayConfig
+from bby.models.Position import Position
+
 
 # Primary entry point for rendering aircraft to the frame buffer
 # Should take a list of aircraft
@@ -19,11 +26,7 @@ import sys
 
 # Add parent directory to path to import models
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bby.models.Aircraft import Aircraft
-from bby.models.BbyCfg import DisplayConfig
-from bby.models.Position import Position
-from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions, FrameCanvas
-import time
+
 
 class AircraftRenderer:
     """Base class for rendering aircraft information."""
@@ -42,7 +45,7 @@ class AircraftRenderer:
 
         # Scale 0 - 1, then
         factor = abs((current_time % 4.0) - 2.0) / 2.0
-        scale = (factor * 255)
+        scale = (factor * 100)
         if is_approaching:
             return graphics.Color(scale, 255, scale)  # Green for approaching
         else:
@@ -73,9 +76,9 @@ class LargeAircraftRenderer(AircraftRenderer):
         super().__init__(home, width, height)
         try:
             self.font_large = graphics.Font()
-            self.font_large.LoadFont("fonts/6x10.bdf")
+            self.font_large.LoadFont("bby/fonts/6x10.bdf")
             self.font_small = graphics.Font()
-            self.font_small.LoadFont("fonts/4x6.bdf")
+            self.font_small.LoadFont("bby/fonts/4x6.bdf")
             self.first_offset = self.font_large.height - 2
             self.second_offset = self.font_large.height + self.font_small.height - 1
         except Exception as e:
@@ -99,11 +102,13 @@ class LargeAircraftRenderer(AircraftRenderer):
         distance_str = self.format_distance(distance)
         speed_str = f"{int(aircraft.get_speed_knots() or 0)}kt" if aircraft.get_speed_knots() else "--kt"
 
-        line1 = f"{flight_name[:6]} {distance_str} {speed_str}"
-        graphics.DrawText(canvas, self.font_large, x, y + self.first_offset, text_color, line1)
+        line1a = f"{flight_name[:6]}"
+        line1b = f"{distance_str}"
+        off = graphics.DrawText(canvas, self.font_large, x, y + self.first_offset, text_color, line1a)
+        off += graphics.DrawText(canvas, self.font_large, x + off + 2, y + self.first_offset, text_color, line1b)
 
         # Line 2: Aircraft type, Origin, Destination, V-rate
-        line2 = f"{aircraft.get_type()[:7]}:{aircraft.get_origin_airport()}-{aircraft.get_dest_airport()}"
+        line2 = f"{aircraft.get_type()[:7]}:{aircraft.get_origin_airport()}-{aircraft.get_dest_airport()}:{speed_str}"
         graphics.DrawText(canvas, self.font_small, x, y + self.second_offset, text_color, line2)
 
 
@@ -114,7 +119,8 @@ class SmallAircraftRenderer(AircraftRenderer):
         super().__init__(home, width, height)
         try:
             self.font = graphics.Font()
-            self.font.LoadFont("fonts/4x6.bdf")
+            self.font.LoadFont("bby/fonts/4x6.bdf")
+            self.font_offset = self.font.height
         except:
             print("Failed to load font, yikes")
 
@@ -139,15 +145,39 @@ class SmallAircraftRenderer(AircraftRenderer):
         #     flight_name = flight_name[:5]
         # draw.text((x + 1, y + 1), flight_name, fill=text_color, font=self.font)
 
-        graphics.DrawText(canvas, self.font, x, y, text_color, flight_name)
+        graphics.DrawText(canvas, self.font, x, y + self.font_offset, text_color, flight_name)
 
         # Line 2: Distance
         distance_str = self.format_distance(distance)[:5]
-        graphics.DrawText(canvas, self.font, x, y + self.font.height + 1, text_color, distance_str)
+        graphics.DrawText(canvas, self.font, x, y + (self.font_offset * 2) + 1, text_color, distance_str)
 
         # # Direction indicator (bottom right)
         # arrow = "↓" if is_approaching else "↑"
         # draw.text((x + 11, y + 10), arrow, fill=text_color, font=self.font)
+
+class AircraftGraphRenderer(AircraftRenderer):
+    def __init__(self, home: Position, width: int, height: int):
+        super().__init__(home, width, height)
+        # 30 km to draw
+        self.range = 50 * 1000
+        self.red = graphics.Color(255, 0, 0)
+        self.green = graphics.Color(0, 255, 0)
+
+    def draw_block(self, canvas: FrameCanvas, x: int, y:int, color: graphics.Color):
+        for xx in range(0, 2):
+            for yy in range(0, 2):
+                canvas.SetPixel(x+xx, y+yy, color.red, color.green, color.blue)
+
+    def render(self, canvas: FrameCanvas, x: int, y: int, aircraft: List[Tuple[Aircraft, Position, float]]) -> None:
+        for aircraft in aircraft:
+            is_approaching = aircraft[1].is_approaching(self.home)
+            scale = canvas.width * (aircraft[2] / self.range)
+            if is_approaching:
+                color = self.green
+            else:
+                color = self.red
+            self.draw_block(canvas, scale, y, color)
+
 
 class ScreenRenderer(AircraftRenderer):
     def __init__(self, home: Position, width: int, height: int, name: str):
@@ -155,12 +185,20 @@ class ScreenRenderer(AircraftRenderer):
         self.name = name
         try:
             self.font = graphics.Font()
-            self.font.LoadFont("fonts/6x10.bdf")
+            self.font.LoadFont("bby/fonts/6x10.bdf")
+            self.image = Image.open("bby/images/cub2.ppm").convert("RGB")
+            self.imgwidth = self.image.size[0]
         except:
             print("Failed to load font, yikes")
 
     def render(self, canvas: FrameCanvas, current_time: float) -> None:
         graphics.DrawText(canvas, self.font, 0, 0 + self.font.height + 1, graphics.Color(255,255,255), self.name)
+        xpos = (current_time * 10) % self.imgwidth
+        ypos = abs((int(current_time) % 4) - 2) - 1
+        canvas.SetImage(self.image, -xpos, ypos, unsafe=False)
+        if (xpos > self.imgwidth - self.width):
+            canvas.SetImage(self.image, -xpos + self.imgwidth, ypos, unsafe=False)
+        graphics.DrawText(canvas, self.font, -xpos + 92, 16 + (self.font.height / 2) + ypos, graphics.Color(0,0,0), self.name)
 
 class DisplayCompositor:
     """Composites multiple aircraft renderers into a single display."""
@@ -179,8 +217,8 @@ class DisplayCompositor:
         self.home =  home
         self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2))
         self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2))
-        self.screensaver = ScreenRenderer(home = home, width = int(self.width / 4), height = int(self.height / 4), name = config.name)
-        self.frame_count = 0
+        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 2)
+        self.screensaver = ScreenRenderer(home = home, width = self.width, height = self.height, name = config.name)
         self.aircraft = []
 
         # Renderers should load their own fonts
@@ -240,12 +278,14 @@ class DisplayCompositor:
                 canvas, 0, 0, current_time
             )
 
-        # Render up to 4 secondary aircraft in bottom half
+        # Render a graph in the middle
+        self.graph.render(canvas, 0, 16, aircraft_with_positions)
+
+        # Render up to 3 secondary aircraft in bottom half
         secondary_positions = [
-            (0, 25),
-            (22, 25),
-            (44, 25),
-            # (44, 16),
+            (0, 18),
+            (22, 18),
+            (44, 18),
         ]
 
         for i, pos in enumerate(secondary_positions):
@@ -263,3 +303,4 @@ class DisplayCompositor:
         while True:
             self.render_frame(offscreen_canvas, self.aircraft)
             offscreen_canvas = self.matrix.SwapOnVSync(offscreen_canvas)
+            time.sleep(0.02)

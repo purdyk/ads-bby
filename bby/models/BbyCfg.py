@@ -36,6 +36,8 @@ class ApiConfig:
     radius_km: float = 24.99  # Default <25km radius
     opensky_username: Optional[str] = None
     opensky_password: Optional[str] = None
+    opensky_client_id: Optional[str] = None
+    opensky_client_secret: Optional[str] = None
     flightaware_api_key: Optional[str] = None
     opensky_refresh_interval: int = 30  # seconds
     max_flightaware_requests_per_minute: int = 10
@@ -44,6 +46,8 @@ class ApiConfig:
         self.radius_km = dict["radius_km"]
         self.opensky_username = dict["opensky_username"]
         self.opensky_password = dict["opensky_password"]
+        self.opensky_client_id = dict["opensky_client_id"]
+        self.opensky_client_secret = dict["opensky_client_secret"]
         self.flightaware_api_key = dict["flightaware_api_key"]
         self.opensky_refresh_interval = dict["opensky_refresh_interval"]
         self.max_flightaware_requests_per_minute = dict["max_flightaware_requests_per_minute"]

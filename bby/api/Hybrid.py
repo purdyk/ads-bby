@@ -3,7 +3,6 @@ import time
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 import requests
-import os
 import math
 
 from bby.models.BbyCfg import BBYConfig
@@ -36,8 +35,10 @@ class HybridAPI:
 
         # Initialize OpenSky API
         self.opensky_api = OpenSkyApi(
-            username=config.api.opensky_username,
-            password=config.api.opensky_password
+            # username=config.api.opensky_username,
+            # password=config.api.opensky_password,
+            client_id=config.api.opensky_client_id,
+            client_secret=config.api.opensky_client_secret
         )
 
         # Aircraft tracking
@@ -244,14 +245,14 @@ class HybridAPI:
                 flights.append({})
                 flight = flights[0]
                 origin = flight.get('origin') or {}
-                origin_apt = origin.get('code', None)
+                origin_apt = origin.get('code_iata', None)
                 dest = flight.get('destination') or {}
-                dest_apt = dest.get('code', None)
+                dest_apt = dest.get('code_iata', None)
 
                 # Parse FlightAware response and create FlightAwareData
                 # Note: Actual field names depend on FA API response structure
                 fa_data = FlightAwareData(
-                    airline=flight.get('operator', None),
+                    airline=flight.get('operator_iata', None),
                     flight_number=flight.get('flight_number', None),
                     aircraft_type=flight.get('aircraft_type', None),
                     origin_airport=origin_apt,

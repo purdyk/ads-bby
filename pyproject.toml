@@ -25,6 +25,6 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
-opensky-api = { git = "https://github.com/openskynetwork/opensky-api", subdirectory = "python" }
+opensky-api = { git = "https://github.com/purdyk/opensky-api", subdirectory = "python" }
 #rgbmatrix = { path = "rgbmatrix-0.0.1-py311-cp311-linux_aarch64.whl" }
 rgbmatrix = { git = "https://github.com/hzeller/rpi-rgb-led-matrix", subdirectory = "bindings/python" }
