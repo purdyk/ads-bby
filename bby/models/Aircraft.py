@@ -218,8 +218,6 @@ class Aircraft:
         else:
             return ""
 
-
-
     def get_aircraft_category_name(self) -> str:
         """Convert category number to human-readable string."""
 

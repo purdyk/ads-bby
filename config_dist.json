@@ -12,9 +12,11 @@
   },
 
   "api": {
-    "radius_km": 24.9,
+    "radius_km": 50.0,
     "opensky_username": null,
     "opensky_password": null,
+    "opensky_client_id": null,
+    "opensky_client_secret": null,
     "flightaware_api_key": null,
     "opensky_refresh_interval": 30,
     "max_flightaware_requests_per_minute": 10

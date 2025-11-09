@@ -79,8 +79,8 @@ class LargeAircraftRenderer(AircraftRenderer):
             self.font_large.LoadFont("bby/fonts/6x10.bdf")
             self.font_small = graphics.Font()
             self.font_small.LoadFont("bby/fonts/4x6.bdf")
-            self.first_offset = self.font_large.height - 2
-            self.second_offset = self.font_large.height + self.font_small.height - 1
+            self.first_offset = self.font_large.height - 3
+            self.second_offset = self.font_large.height + self.font_small.height - 3
         except Exception as e:
             print(f"Failed to load font, yikes {e}")
 
@@ -155,22 +155,22 @@ class SmallAircraftRenderer(AircraftRenderer):
         # draw.text((x + 11, y + 10), arrow, fill=text_color, font=self.font)
 
 class AircraftGraphRenderer(AircraftRenderer):
-    def __init__(self, home: Position, width: int, height: int):
+    def __init__(self, home: Position, width: int, height: int, range_km: int):
         super().__init__(home, width, height)
-        # 30 km to draw
-        self.range = 50 * 1000
+        # 50 km to draw
+        self.range = range_km * 1000.0
         self.red = graphics.Color(255, 0, 0)
         self.green = graphics.Color(0, 255, 0)
 
     def draw_block(self, canvas: FrameCanvas, x: float, y:float, color: graphics.Color):
         for xx in range(0, 3):
-            for yy in range(0, 2):
-                color_scale = 1.0
-                if xx == 0:
-                    color_scale = 1 - (x % 1.0)
-                elif xx == 2:
-                    color_scale = (x % 1.0)
+            color_scale = 1.0
+            if xx == 0:
+                color_scale = 1 - (x % 1.0)
+            elif xx == 2:
+                color_scale = (x % 1.0)
 
+            for yy in range(0, self.height):
                 canvas.SetPixel(x+xx, y+yy, color.red * color_scale, color.green * color_scale, color.blue * color_scale)
 
     def render(self, canvas: FrameCanvas, x: int, y: int, aircraft: List[Tuple[Aircraft, Position, float]]) -> None:
@@ -182,7 +182,6 @@ class AircraftGraphRenderer(AircraftRenderer):
             else:
                 color = self.red
             self.draw_block(canvas, scale, y, color)
-
 
 class ScreenRenderer(AircraftRenderer):
     def __init__(self, home: Position, width: int, height: int, name: str):
@@ -198,12 +197,82 @@ class ScreenRenderer(AircraftRenderer):
 
     def render(self, canvas: FrameCanvas, current_time: float) -> None:
         graphics.DrawText(canvas, self.font, 0, 0 + self.font.height + 1, graphics.Color(255,255,255), self.name)
-        xpos = (current_time * 10) % self.imgwidth
-        ypos = abs((int(current_time) % 4) - 2) - 1
-        canvas.SetImage(self.image, -xpos, ypos, unsafe=False)
-        if (xpos > self.imgwidth - self.width):
-            canvas.SetImage(self.image, -xpos + self.imgwidth, ypos, unsafe=False)
-        graphics.DrawText(canvas, self.font, -xpos + 92, 16 + (self.font.height / 2) + ypos, graphics.Color(0,0,0), self.name)
+        x_pos = (current_time * 10) % self.imgwidth
+        y_pos = abs((int(current_time) % 4) - 2) - 1
+        canvas.SetImage(self.image, -x_pos, y_pos, unsafe=False)
+        if x_pos > self.imgwidth - self.width:
+            canvas.SetImage(self.image, -x_pos + self.imgwidth, y_pos, unsafe=False)
+        graphics.DrawText(canvas, self.font, -x_pos + 92, 16 + (self.font.height / 2) + y_pos, graphics.Color(0,0,0), self.name)
+
+class AnimationInformation:
+    destination: int
+    source: int
+    started: float
+
+    def __init__(self, destination: int, source: int, started: float) -> None:
+        self.destination = destination
+        self.source = source
+        self.started = started
+        self.complete = destination < 0 and source > 3
+        self.x_size = 22
+        self.duration = 0.5
+        self.x_dest = (self.destination * self.x_size)
+        self.x_src = (self.source * self.x_size)
+        self.x_off = (self.x_size * (self.destination - self.source))
+
+    def get_x(self, current_time: float) -> int:
+        delta = current_time - self.started
+        if delta >= self.duration:
+            self.complete = True
+
+        if self.complete:
+            return self.x_dest
+        else:
+            # make 2 square it, then divide by 4 gives exponential?
+            scale = (((delta / self.duration)*10)**3)/1000.0
+            offset = scale * self.x_off
+            x_out = int(self.x_src + offset)
+            #print(f"Anim {self.source} -> {self.destination}: {self.x_src} + {offset} = {x_out}")
+            return x_out
+
+class PositionAnimator:
+    def __init__(self):
+        self.positions: dict[str, AnimationInformation] = {}
+        self.y_pos = 19
+        self.cleanup = 0.0
+
+    def render(self, canvas: FrameCanvas, aircraft: List[Tuple[Aircraft, Position, float]], renderer: SmallAircraftRenderer, current_time: float) -> None:
+        if current_time > self.cleanup:
+            self.cleanup = current_time + 10
+            included = [x[0].opensky.icao24 for x in aircraft]
+            has = list(self.positions.keys())
+            for each in has:
+                if each not in included:
+                    del self.positions[each]
+
+        # Note we're drawing 2 offscreen aircraft
+        for i in range(0, 6):
+            if i == len(aircraft):
+                break
+
+            info = aircraft[i]
+            craft = info[0]
+            current_info = self.positions.get(craft.opensky.icao24, None)
+
+            # Offset dest
+            dest = i - 1
+
+            if current_info is not None and current_info.destination != dest:
+                current_info = AnimationInformation(dest, current_info.destination, current_time)
+                self.positions[craft.opensky.icao24] = current_info
+
+            elif current_info is None:
+                current_info = AnimationInformation(dest, 5, current_time)
+                self.positions[craft.opensky.icao24] = current_info
+
+            renderer.render(
+                info[0], info[1], info[2],canvas,
+                current_info.get_x(current_time), self.y_pos, current_time)
 
 class DisplayCompositor:
     """Composites multiple aircraft renderers into a single display."""
@@ -222,8 +291,9 @@ class DisplayCompositor:
         self.home =  home
         self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2))
         self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2))
-        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 2)
+        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 5, range_km=50)
         self.screensaver = ScreenRenderer(home = home, width = self.width, height = self.height, name = config.name)
+        self.animator = PositionAnimator()
         self.aircraft = []
 
         # Renderers should load their own fonts
@@ -242,7 +312,7 @@ class DisplayCompositor:
         self.matrix = RGBMatrix(options=options)
 
 
-    def render_frame(self, canvas: FrameCanvas, aircraft_list: List[Aircraft]):
+    def render_frame(self, canvas: FrameCanvas, aircraft_list: List[Aircraft]) -> None:
         """Render a complete frame with all aircraft."""
         # Create black background
         canvas.Clear()
@@ -251,13 +321,8 @@ class DisplayCompositor:
         current_time = datetime.now().timestamp()
 
         if len(aircraft_list) == 0:
-            # Show screensaver or "No Aircraft" message
-            # draw = ImageDraw.Draw(image)
-            #
-            # draw.text((8, 12), "No Aircraft", fill=(128, 128, 128), font=self.font)
-            # return image
-            # TODO screensaver
             self.screensaver.render(canvas, current_time)
+            return
 
         aircraft_with_positions = []
 
@@ -284,22 +349,10 @@ class DisplayCompositor:
             )
 
         # Render a graph in the middle
-        self.graph.render(canvas, 0, 16, aircraft_with_positions)
+        self.graph.render(canvas, 0, 14, aircraft_with_positions)
 
-        # Render up to 3 secondary aircraft in bottom half
-        secondary_positions = [
-            (0, 18),
-            (22, 18),
-            (44, 18),
-        ]
-
-        for i, pos in enumerate(secondary_positions):
-            if i + 1 < len(aircraft_with_positions):
-                secondary = aircraft_with_positions[i + 1]
-                self.small_renderer.render(
-                    secondary[0], secondary[1], secondary[2],
-                    canvas, pos[0], pos[1], current_time
-                )
+        # Render the bottom row of aircraft
+        self.animator.render(canvas, aircraft_with_positions, self.small_renderer, current_time)
 
     def run(self):
         # Maybe init a few things
