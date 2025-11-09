@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List, Tuple
+from typing import Optional, List, Mapping, ClassVar
 from datetime import datetime
 import math
 from bby.models.Position import Position
@@ -87,6 +87,30 @@ class Aircraft:
     # Optional FlightAware supplemental data
     flightaware: Optional[FlightAwareData] = None
 
+    typeMap: ClassVar[Mapping[int, str]] = {
+            0: "UNK",
+            1: "NADS",
+            2: "LHT",
+            3: "SML",
+            4: "LRG",
+            5: "HVor",
+            6: "HVY",
+            7: "HPerf",
+            8: "ROT",
+            9: "GLID",
+            10: "LTA",
+            11: "CHUT",
+            12: "UtlL",
+            13: "RSVD",
+            14: "UMND",
+            15: "SPACE",
+            16: "SURF",
+            17: "POBS",
+            18: "COBS",
+            19: "LOBS",
+            20: "RSVD",
+        }
+
     def get_altitude(self) -> Optional[float]:
         """Return the best available altitude in meters."""
         return self.opensky.geo_altitude if self.opensky.geo_altitude is not None \
@@ -171,6 +195,8 @@ class Aircraft:
         if self.flightaware and self.flightaware.origin_airport:
             return self.flightaware.origin_airport
         else:
+            if self.opensky.origin_country == "United States":
+                return "USA"
             return self.opensky.origin_country
 
     def get_dest_airport(self) -> str:
@@ -192,32 +218,15 @@ class Aircraft:
         else:
             return ""
 
+
+
     def get_aircraft_category_name(self) -> str:
         """Convert category number to human-readable string."""
-        categories = {
-            0: "No category",
-            1: "No ADS-B emitter",
-            2: "Light aircraft",
-            3: "Small aircraft",
-            4: "Large aircraft",
-            5: "High vortex aircraft",
-            6: "Heavy aircraft",
-            7: "High performance aircraft",
-            8: "Rotorcraft",
-            9: "Glider",
-            10: "Lighter than air",
-            11: "Parachutist",
-            12: "Ultralight",
-            13: "Reserved",
-            14: "Unmanned vehicle",
-            15: "Space vehicle",
-            16: "Surface vehicle",
-            17: "Point obstacle",
-            18: "Cluster obstacle",
-            19: "Line obstacle",
-            20: "Reserved",
-        }
-        return categories.get(self.opensky.category, "Unknown")
+
+        return self.typeMap.get(self.opensky.category, "UNK")
+
+    def get_short_country_name(self) -> str:
+        """Convert country number to human-readable string."""
 
     def time_since_contact(self) -> Optional[float]:
         """Return seconds since last contact."""

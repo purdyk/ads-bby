@@ -111,7 +111,6 @@ class LargeAircraftRenderer(AircraftRenderer):
         line2 = f"{aircraft.get_type()[:7]}:{aircraft.get_origin_airport()}-{aircraft.get_dest_airport()}:{speed_str}"
         graphics.DrawText(canvas, self.font_small, x, y + self.second_offset, text_color, line2)
 
-
 class SmallAircraftRenderer(AircraftRenderer):
     """Renderer for secondary aircraft in 16x16 pixel grids."""
 
@@ -163,10 +162,16 @@ class AircraftGraphRenderer(AircraftRenderer):
         self.red = graphics.Color(255, 0, 0)
         self.green = graphics.Color(0, 255, 0)
 
-    def draw_block(self, canvas: FrameCanvas, x: int, y:int, color: graphics.Color):
-        for xx in range(0, 2):
+    def draw_block(self, canvas: FrameCanvas, x: float, y:float, color: graphics.Color):
+        for xx in range(0, 3):
             for yy in range(0, 2):
-                canvas.SetPixel(x+xx, y+yy, color.red, color.green, color.blue)
+                color_scale = 1.0
+                if xx == 0:
+                    color_scale = 1 - (x % 1.0)
+                elif xx == 2:
+                    color_scale = (x % 1.0)
+
+                canvas.SetPixel(x+xx, y+yy, color.red * color_scale, color.green * color_scale, color.blue * color_scale)
 
     def render(self, canvas: FrameCanvas, x: int, y: int, aircraft: List[Tuple[Aircraft, Position, float]]) -> None:
         for aircraft in aircraft:
