@@ -4,6 +4,8 @@ from typing import Dict, List, Optional, Callable
 from datetime import datetime
 import requests
 import math
+from json import load
+
 
 from bby.models.BbyCfg import BBYConfig
 from bby.models.Aircraft import Aircraft, OpenSkyData, FlightAwareData
@@ -32,6 +34,7 @@ class HybridAPI:
     def __init__(self, config: BBYConfig):
         self.config = config
         self.home = config.home.position
+        self.bbox = self.calculate_bounding_box()
 
         # Initialize OpenSky API
         self.opensky_api = OpenSkyApi(
@@ -103,12 +106,12 @@ class HybridAPI:
 
     def _opensky_poll_loop(self):
         """Background thread that polls OpenSky API."""
-        bbox = self.calculate_bounding_box()
 
         while self.running:
             try:
                 # Get states from OpenSky
-                states = self.opensky_api.get_states(bbox=bbox)
+                # print(self.bbox)
+                states = self.opensky_api.get_states(bbox=self.bbox)
 
                 if states:
                     self._process_opensky_states(states.states)
@@ -306,25 +309,15 @@ class HybridAPI:
 # Example usage
 if __name__ == "__main__":
     # Example configuration for Corvallis area
-    config = BBYConfig()
-    #     dict(
-    #         home_latitude=37.7749,
-    #         home_longitude=-122.4194,
-    #         # home_latitude=44.59000326746005,
-    #         # home_longitude=-123.30320891807465,
-    #         radius_km=25,
-    #         opensky_username=None,  # Optional for better rate limits
-    #         opensky_password=None,
-    #         flightaware_api_key=os.getenv("FLIGHTAWARE_API_KEY"),  # Set via environment
-    #         opensky_refresh_interval=30
-    #     )
-    # )
+    config = load(open("config.json"))
+    config = BBYConfig(config)
 
     def on_aircraft_update(aircraft: List[Aircraft]):
         print(f"Aircraft update: {len(aircraft)} aircraft in range")
         for a in aircraft:  # demo shows all aircraft
             # print(a)
-            print(f"  - {a.get_display_name()}: {a.get_altitude_ft():.0f}ft @ {a.get_speed_knots():.0f}kt {a.bonus()}")
+            dist = config.home.position.calculate_distance(a.extrapolate_position(0))
+            print(f"  - {a.get_display_name()}: {a.get_altitude_ft():.0f}ft @ {a.get_speed_knots():.0f}kt {a.bonus()} {dist}")
 
     api = HybridAPI(config)
     api.add_observer(on_aircraft_update)

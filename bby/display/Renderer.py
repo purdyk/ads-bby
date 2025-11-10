@@ -6,7 +6,7 @@ from PIL import Image
 from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions, FrameCanvas
 
 from bby.models.Aircraft import Aircraft
-from bby.models.BbyCfg import DisplayConfig
+from bby.models.BbyCfg import DisplayConfig, BBYConfig
 from bby.models.Position import Position
 
 
@@ -157,7 +157,6 @@ class SmallAircraftRenderer(AircraftRenderer):
 class AircraftGraphRenderer(AircraftRenderer):
     def __init__(self, home: Position, width: int, height: int, range_km: int):
         super().__init__(home, width, height)
-        # 50 km to draw
         self.range = range_km * 1000.0
         self.red = graphics.Color(255, 0, 0)
         self.green = graphics.Color(0, 255, 0)
@@ -285,13 +284,19 @@ class DisplayCompositor:
     """
     aircraft: List[Aircraft]
 
-    def __init__(self, home: Position, config: DisplayConfig):
+    def __init__(self, home: Position, bconfig: BBYConfig):
+        config = bconfig.display
         self.width = config.width
         self.height = config.height
         self.home =  home
         self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2))
         self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2))
-        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 5, range_km=50)
+
+        # API radius is actually an x+y range, farthest possible is a hypotenuse
+        # So graph range should reflect this
+        hyp = ((bconfig.api.radius_km**2)*2)**0.5
+
+        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 5, range_km=hyp)
         self.screensaver = ScreenRenderer(home = home, width = self.width, height = self.height, name = config.name)
         self.animator = PositionAnimator()
         self.aircraft = []
