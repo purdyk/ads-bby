@@ -21,7 +21,7 @@ def main():
     config = BBYConfig(config)
     api = HybridAPI(config)
 
-    compositor = DisplayCompositor(home=Position(latitude= config.home.latitude, longitude=config.home.longitude), config = config.display)
+    compositor = DisplayCompositor(home=Position(latitude= config.home.latitude, longitude=config.home.longitude), bconfig = config)
 
     def onApiUpdate(newAircraft: List[Aircraft]):
         print(f"found {len(newAircraft)}")
