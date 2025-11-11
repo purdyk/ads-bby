@@ -246,7 +246,7 @@ class HybridAPI:
 
                 flights = data.get('flights') or []
                 flights.append({})
-                flight = flights[0]
+                flight = next(filter(lambda x: x.get('status') == "En Route", flights), flights[0])
                 origin = flight.get('origin') or {}
                 origin_apt = origin.get('code_iata', None)
                 dest = flight.get('destination') or {}
