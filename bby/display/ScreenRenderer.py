@@ -19,7 +19,7 @@ class ScreenRenderer(AircraftRenderer):
 
     def render(self, canvas: FrameCanvas, current_time: float) -> None:
         graphics.DrawText(canvas, self.font, 0, 0 + self.font.height + 1, graphics.Color(255,255,255), self.name)
-        x_pos = int(current_time * 8) % self.img_width
+        x_pos = int(current_time * 30) % self.img_width
         y_pos = abs((int(current_time) % 4) - 2) - 1
         canvas.SetImage(self.image, -x_pos, y_pos, unsafe=False)
         if x_pos > self.img_width - self.width:
