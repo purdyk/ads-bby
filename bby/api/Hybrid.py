@@ -59,6 +59,7 @@ class HybridAPI:
         # FlightAware rate limiting
         self.fa_request_times: List[float] = []
         self.fa_lock = threading.Lock()
+        self.fa_queue: List[str] = []
 
     def calculate_bounding_box(self) -> tuple:
         """Calculate bounding box from home position and radius."""
@@ -90,10 +91,10 @@ class HybridAPI:
 
         # Start FlightAware enrichment thread if API key is provided
         # Instead of doing this for every aircraft, lets only do it when we display them
-        # if self.config.api.flightaware_api_key:
-        #     print("starting flightaware enrichment")
-        #     self.flightaware_thread = threading.Thread(target=self._flightaware_enrich_loop, daemon=True)
-        #     self.flightaware_thread.start()
+        if self.config.api.flightaware_api_key:
+            print("starting flightaware enrichment")
+            self.flightaware_thread = threading.Thread(target=self._flightaware_enrich_loop, daemon=True)
+            self.flightaware_thread.start()
 
     def stop(self):
         """Stop the hybrid API service."""
@@ -107,7 +108,7 @@ class HybridAPI:
 
     def request_enrich(self, icao24: str):
         if self.config.api.flightaware_api_key:
-            self._enrich_with_flightaware(icao24)
+            self.fa_queue.append(icao24)
 
     def _opensky_poll_loop(self):
         """Background thread that polls OpenSky API."""
@@ -184,7 +185,7 @@ class HybridAPI:
                 with self.lock:
                     # Find aircraft that need FlightAware data
                     unenriched = [
-                        icao24 for icao24 in self.current_aircraft.keys()
+                        icao24 for icao24 in self.fa_queue
                         if self.current_aircraft[icao24].flightaware is None
                         and self.current_aircraft[icao24].opensky.callsign  # Only if we have a callsign
                     ]
@@ -199,6 +200,7 @@ class HybridAPI:
                         continue
 
                     # Get FlightAware data
+                    self.fa_queue.remove(icao24)
                     self._enrich_with_flightaware(icao24)
 
                 time.sleep(1)  # Brief pause between enrichment attempts
