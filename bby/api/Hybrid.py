@@ -89,10 +89,11 @@ class HybridAPI:
         self.opensky_thread.start()
 
         # Start FlightAware enrichment thread if API key is provided
-        if self.config.api.flightaware_api_key:
-            print("starting flightaware enrichment")
-            self.flightaware_thread = threading.Thread(target=self._flightaware_enrich_loop, daemon=True)
-            self.flightaware_thread.start()
+        # Instead of doing this for every aircraft, lets only do it when we display them
+        # if self.config.api.flightaware_api_key:
+        #     print("starting flightaware enrichment")
+        #     self.flightaware_thread = threading.Thread(target=self._flightaware_enrich_loop, daemon=True)
+        #     self.flightaware_thread.start()
 
     def stop(self):
         """Stop the hybrid API service."""
@@ -103,6 +104,10 @@ class HybridAPI:
 
         if self.flightaware_thread:
             self.flightaware_thread.join(timeout=5)
+
+    def request_enrich(self, icao24: str):
+        if self.config.api.flightaware_api_key:
+            self._enrich_with_flightaware(icao24)
 
     def _opensky_poll_loop(self):
         """Background thread that polls OpenSky API."""
@@ -227,6 +232,10 @@ class HybridAPI:
                 'x-apikey': self.config.api.flightaware_api_key
             }
 
+            # Any attempt marks the aircraft as loaded
+            with self.lock:
+                self.current_aircraft[icao24].flightaware = FlightAwareData()
+
             # Try to get flight info by callsign (flight identifier)
             # Note: Real implementation would need proper FA API endpoint
             url = f"https://aeroapi.flightaware.com/aeroapi/flights/{aircraft.opensky.callsign.strip()}"
@@ -236,21 +245,22 @@ class HybridAPI:
             print(f"fetched: {url}\nresponse: {response.status_code}")
 
             if response.status_code == 200:
-                # Any response marks the aircraft as loaded
-                with self.lock:
-                    self.current_aircraft[icao24].flightaware = FlightAwareData()
-
                 data = response.json()
                 if data is None:
                     return
 
-                flights = data.get('flights') or []
+                flights = data.get('flights', []) or []
                 flights.append({})
-                flight = next(filter(lambda x: x.get('status') == "En Route", flights), flights[0])
-                origin = flight.get('origin') or {}
+                flight = next(filter(lambda x: "En Route" in x.get('status', " ") or " ", flights), flights[0])
+
+                # print(f"parsed {len(flights)} flights")
+
+                origin = flight.get('origin', {}) or {}
                 origin_apt = origin.get('code_iata', None)
-                dest = flight.get('destination') or {}
+                dest = flight.get('destination', {}) or {}
                 dest_apt = dest.get('code_iata', None)
+
+                # print("parsed origin and dest")
 
                 # Parse FlightAware response and create FlightAwareData
                 # Note: Actual field names depend on FA API response structure
@@ -265,9 +275,8 @@ class HybridAPI:
                 )
 
                 with self.lock:
-                    if icao24 in self.current_aircraft:
-                        self.current_aircraft[icao24].flightaware = fa_data
-                        self._notify_observers()
+                    self.current_aircraft[icao24].flightaware = fa_data
+                    self._notify_observers()
 
         except Exception as e:
             print(f"Error enriching {icao24} with FlightAware data: {e}")
@@ -321,6 +330,8 @@ if __name__ == "__main__":
 
     api = HybridAPI(config)
     api.add_observer(on_aircraft_update)
+
+    print(f"bbox: {api.bbox}")
 
     try:
         api.start()

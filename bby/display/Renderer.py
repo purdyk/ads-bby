@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-from typing import List
+from typing import List, Tuple, Callable
 
 from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions, FrameCanvas
 
@@ -43,13 +43,14 @@ class DisplayCompositor:
     """
     aircraft: List[Aircraft]
 
-    def __init__(self, home: Position, bconfig: BBYConfig):
+    def __init__(self, home: Position, bconfig: BBYConfig, enrich: Callable[[str], None]):
         config = bconfig.display
         self.width = config.width
         self.height = config.height
         self.home =  home
         self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2))
         self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2))
+        self.request_enrich = enrich
 
         # API radius is actually an x+y range, farthest possible is a hypotenuse
         # So graph range should reflect this
@@ -88,7 +89,7 @@ class DisplayCompositor:
             self.screensaver.render(canvas, current_time)
             return
 
-        aircraft_with_positions = []
+        aircraft_with_positions: List[Tuple[Aircraft, Position, float]] = []
 
         for aircraft in aircraft_list:
             if aircraft.opensky.last_contact:
@@ -100,6 +101,10 @@ class DisplayCompositor:
 
         # Sort by distance
         aircraft_with_positions.sort(key=lambda x: x[2])
+
+        for each in aircraft_with_positions[:4]:
+            if each[0].flightaware is None and each[0].opensky.callsign:
+                self.request_enrich(each[0].opensky.icao24)
 
         # This is cheap, it only renders everything in-place
         # it should be submitting the list to an _actual_ compositor which chooses to animate their positions/size

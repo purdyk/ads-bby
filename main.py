@@ -21,13 +21,21 @@ def main():
     config = BBYConfig(config)
     api = HybridAPI(config)
 
-    compositor = DisplayCompositor(home=Position(latitude= config.home.latitude, longitude=config.home.longitude), bconfig = config)
+    def enrich(icao24: str) -> None:
+        print(f"Requesting enrich for {icao24}")
+        api.request_enrich(icao24)
 
-    def onApiUpdate(newAircraft: List[Aircraft]):
-        print(f"found {len(newAircraft)}")
-        compositor.aircraft = newAircraft
+    compositor = DisplayCompositor(
+        home=Position(latitude= config.home.latitude,
+                      longitude=config.home.longitude),
+        bconfig = config,
+        enrich=enrich)
 
-    api.add_observer(onApiUpdate)
+    def on_api_update(new_aircraft: List[Aircraft]) -> None:
+        print(f"found {len(new_aircraft)}")
+        compositor.aircraft = new_aircraft
+
+    api.add_observer(on_api_update)
     api.start()
     compositor.run()
 
