@@ -215,6 +215,20 @@ class HybridAPI:
                 print(f"Error in FlightAware enrichment: {e}")
                 time.sleep(5)
 
+    def _can_process_flightaware_request(self) -> bool:
+        start = self.config.api.quiet_start
+        end = self.config.api.quiet_end
+
+        if start is None or end is None:
+            return True
+
+        now = datetime.now()
+
+        if start > end:
+            return start > now.hour > end
+        else:
+            return start < now.hour < end
+
     def _can_make_flightaware_request(self) -> bool:
         """Check if we can make a FlightAware request (rate limiting)."""
         with self.fa_lock:
@@ -243,6 +257,11 @@ class HybridAPI:
             # Any attempt marks the aircraft as loaded
             with self.lock:
                 self.current_aircraft[icao24].flightaware = FlightAwareData()
+
+            # when processing is not allowed, we don't want to retry
+            # so this bailout happens after we've marked the aircraft as loaded
+            if not self._can_process_flightaware_request():
+                return
 
             now = datetime.now()
             tomorrow = now + timedelta(days=1)
