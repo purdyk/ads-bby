@@ -22,7 +22,6 @@ def main():
     api = HybridAPI(config)
 
     def enrich(icao24: str) -> None:
-        print(f"Requesting enrich for {icao24}")
         api.request_enrich(icao24)
 
     compositor = DisplayCompositor(
