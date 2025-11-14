@@ -1,7 +1,7 @@
 import threading
 import time
 from typing import Dict, List, Optional, Callable
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import requests
 import math
 from json import load
@@ -108,7 +108,13 @@ class HybridAPI:
 
     def request_enrich(self, icao24: str):
         if self.config.api.flightaware_api_key:
-            self.fa_queue.append(icao24)
+            with self.lock:
+                try:
+                    self.fa_queue.remove(icao24)
+                except ValueError:
+                    # We don't care if it is already here, this is faster than checking before adding
+                    pass
+                self.fa_queue.append(icao24)
 
     def _opensky_poll_loop(self):
         """Background thread that polls OpenSky API."""
@@ -238,11 +244,20 @@ class HybridAPI:
             with self.lock:
                 self.current_aircraft[icao24].flightaware = FlightAwareData()
 
+            now = datetime.now()
+            tomorrow = now + timedelta(days=1)
+            yesterday = now - timedelta(days=1)
+
+            params = {
+                'start': self._make_fa_datetime(yesterday),
+                'end': self._make_fa_datetime(tomorrow),
+            }
+
             # Try to get flight info by callsign (flight identifier)
             # Note: Real implementation would need proper FA API endpoint
             url = f"https://aeroapi.flightaware.com/aeroapi/flights/{aircraft.opensky.callsign.strip()}"
 
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, params=params, headers=headers, timeout=10)
 
             print(f"fetched: {url}\nresponse: {response.status_code}")
 
@@ -292,6 +307,12 @@ class HybridAPI:
             return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
         except:
             return None
+
+    @staticmethod
+    def _make_fa_datetime(dt: datetime) -> str:
+        local = dt.astimezone()
+        utc = local.astimezone(timezone.utc)
+        return utc.isoformat(timespec='seconds').replace('+00:00', 'Z')
 
     def _notify_observers(self):
         """Notify all observers of aircraft updates."""
