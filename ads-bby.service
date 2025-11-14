@@ -3,11 +3,11 @@ Description=Show stuff on the screen
 After=network.target
 
 [Service]
-User=root
-Group=root
+User=purdyk
+Group=purdyk
 Type=simple
-WorkingDirectory=/root/ads-bby
-ExecStart=/home/purdyk/.local/bin/uv run /root/ads-bby/main.py
+WorkingDirectory=/home/purdyk/ads-bby
+ExecStart=/home/purdyk/.local/bin/uv run /home/purdyk/ads-bby/main.py
 
 [Install]
 WantedBy=multi-user.target
