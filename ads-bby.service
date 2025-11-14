@@ -1,0 +1,13 @@
+[Unit]
+Description=Show stuff on the screen
+After=network.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+WorkingDirectory=/root/ads-bby
+ExecStart=/home/purdyk/.local/bin/uv run /root/ads-bby/main.py
+
+[Install]
+WantedBy=multi-user.target
