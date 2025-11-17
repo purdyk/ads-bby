@@ -56,7 +56,8 @@ class DisplayCompositor:
         # So graph range should reflect this
         hyp = ((bconfig.api.radius_km**2)*2)**0.5
 
-        self.graph = AircraftGraphRenderer(home = home, width = self.width, height = 5, range_km=hyp)
+        self.graph_close = AircraftGraphRenderer(home = home, width = self.width, height = 2, range_km=hyp / 2)
+        self.graph_far = AircraftGraphRenderer(home = home, width = self.width, height = 2, range_km=hyp)
         self.screensaver = ScreenRenderer(home = home, width = self.width, height = self.height, name = config.name)
         self.animator = PositionAnimator()
         self.aircraft = []
@@ -118,7 +119,8 @@ class DisplayCompositor:
             )
 
         # Render a graph in the middle
-        self.graph.render(canvas, 0, 14, aircraft_with_positions)
+        self.graph_close.render(canvas, 0, 14, aircraft_with_positions)
+        self.graph_far.render(canvas, 0, 17, aircraft_with_positions)
 
         # Render the bottom row of aircraft
         self.animator.render(canvas, aircraft_with_positions, self.small_renderer, current_time)

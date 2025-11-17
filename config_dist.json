@@ -20,6 +20,7 @@
     "flightaware_api_key": null,
     "quiet_start": null,
     "quiet_end": null,
+    "quiet_tz": null,
     "opensky_refresh_interval": 30,
     "max_flightaware_requests_per_minute": 10
   }

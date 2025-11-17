@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from rgbmatrix import graphics, FrameCanvas
 
@@ -14,7 +14,8 @@ class AircraftGraphRenderer(AircraftRenderer):
         self.red = graphics.Color(255, 0, 0)
         self.green = graphics.Color(0, 255, 0)
 
-    def draw_block(self, canvas: FrameCanvas, x: float, y:float, color: graphics.Color):
+    @staticmethod
+    def generate_blocks(blocks: Dict[int, graphics.Color], x: float, color: graphics.Color):
         for xx in range(0, 3):
             color_scale = 1.0
             if xx == 0:
@@ -22,10 +23,24 @@ class AircraftGraphRenderer(AircraftRenderer):
             elif xx == 2:
                 color_scale = (x % 1.0)
 
+            target = int(x+xx)
+            blend = blocks.get(target, graphics.Color(0, 0, 0))
+            new = graphics.Color(color.red * color_scale, color.green * color_scale, color.blue * color_scale)
+            blended = graphics.Color(max(blend.red, new.red), max(blend.green, new.green), max(blend.blue, new.blue))
+            blocks[target] = blended
+
+
+    def write_blocks(self, blocks: Dict[int, graphics.Color], y: float, canvas: FrameCanvas):
+        for x in blocks.keys():
+            color = blocks[x]
             for yy in range(0, self.height):
-                canvas.SetPixel(x+xx, y+yy, color.red * color_scale, color.green * color_scale, color.blue * color_scale)
+                canvas.SetPixel(x, y + yy, color.red, color.green, color.blue)
+
 
     def render(self, canvas: FrameCanvas, x: int, y: int, aircraft: List[Tuple[Aircraft, Position, float]]) -> None:
+
+        blocks: Dict[int, graphics.Color] = {}
+
         for aircraft in aircraft:
             is_approaching = aircraft[1].is_approaching(self.home)
             scale = x + ((canvas.width - x) * (aircraft[2] / self.range))
@@ -33,4 +48,6 @@ class AircraftGraphRenderer(AircraftRenderer):
                 color = self.green
             else:
                 color = self.red
-            self.draw_block(canvas, scale, y, color)
+            AircraftGraphRenderer.generate_blocks(blocks, scale, color)
+
+        self.write_blocks(blocks, y, canvas)

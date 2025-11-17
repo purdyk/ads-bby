@@ -41,6 +41,7 @@ class ApiConfig:
     flightaware_api_key: Optional[str] = None
     quiet_start: Optional[int] = None
     quiet_end: Optional[int] = None
+    quiet_tz: Optional[str] = None
     opensky_refresh_interval: int = 30  # seconds
     max_flightaware_requests_per_minute: int = 10
 
@@ -53,6 +54,7 @@ class ApiConfig:
         self.flightaware_api_key = dict["flightaware_api_key"]
         self.quiet_start = dict["quiet_start"]
         self.quiet_end = dict["quiet_end"]
+        self.quiet_tz = dict["quiet_tz"]
         self.opensky_refresh_interval = dict["opensky_refresh_interval"]
         self.max_flightaware_requests_per_minute = dict["max_flightaware_requests_per_minute"]
 

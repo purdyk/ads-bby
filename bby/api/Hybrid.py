@@ -3,6 +3,7 @@ import time
 from typing import Dict, List, Optional, Callable
 from datetime import datetime, timedelta, timezone
 import requests
+from zoneinfo import ZoneInfo
 import math
 from json import load
 
@@ -222,12 +223,13 @@ class HybridAPI:
         if start is None or end is None:
             return True
 
-        now = datetime.now()
+        tz = ZoneInfo(key=self.config.api.quiet_tz)
+        now = datetime.now().astimezone(tz)
 
         if start > end:
-            return start > now.hour > end
+            return start > now.hour >= end
         else:
-            return start < now.hour < end
+            return start <= now.hour or now.hour < end
 
     def _can_make_flightaware_request(self) -> bool:
         """Check if we can make a FlightAware request (rate limiting)."""
