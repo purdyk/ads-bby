@@ -7,7 +7,7 @@ User=purdyk
 Group=purdyk
 Type=simple
 WorkingDirectory=/home/purdyk/ads-bby
-ExecStart=/home/purdyk/.local/bin/uv run /home/purdyk/ads-bby/main.py
+ExecStart=/home/purdyk/ads-bby/run.sh
 
 [Install]
 WantedBy=multi-user.target
