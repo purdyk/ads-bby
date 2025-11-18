@@ -8,4 +8,4 @@ wget https://www.flightaware.com/adsb/piaware/files/packages/pool/piaware/f/flig
 sudo dpkg -i flightaware-apt-repository_1.2_all.deb
 
 sudo apt update
-sudo apt-get install piaware opensky-feeder dump1090-fa dump978-fa
+sudo apt-get install piaware piaware-web opensky-feeder dump1090-fa 
