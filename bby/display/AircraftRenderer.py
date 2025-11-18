@@ -31,16 +31,16 @@ class AircraftRenderer:
 
     @staticmethod
     def format_distance(distance_m: Optional[float]) -> str:
-        """Format distance for display."""
-        distance_km = distance_m/1000.0
-        if distance_km is None:
+        """Format distance for display. Outputs in Nautical Miles"""
+        distance_nm = distance_m/1852.0
+        if distance_nm is None:
             return "--"
-        if distance_km < 1:
-            return f"{int(distance_km * 1000)}m"
-        elif distance_km < 10:
-            return f"{distance_km:.1f}km"
+        if distance_nm < 0.16:
+            return f"{int(distance_m * 3.28084)}ft"
+        elif distance_nm < 10:
+            return f"{distance_nm:.1f}NM"
         else:
-            return f"{int(distance_km)}km"
+            return f"{int(distance_nm)}NM"
 
     @staticmethod
     def get_direction_arrow(is_approaching: Optional[bool]) -> str:

@@ -1,6 +1,7 @@
 import threading
 import time
-from typing import Dict, List, Optional, Callable
+from functools import reduce
+from typing import Dict, List, Optional, Callable, Tuple
 from datetime import datetime, timedelta, timezone
 import requests
 from zoneinfo import ZoneInfo
@@ -58,6 +59,7 @@ class HybridAPI:
         self.running = False
 
         # FlightAware rate limiting
+        self.fa_cache: Dict[str, requests.Response] = {}
         self.fa_request_times: List[float] = []
         self.fa_lock = threading.Lock()
         self.fa_queue: List[str] = []
@@ -243,6 +245,25 @@ class HybridAPI:
                 return True
             return False
 
+    @staticmethod
+    def _parse_fa_components_from_flight(flight: Dict, default: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        origin = flight.get('origin', {}) or {}
+        origin_apt = origin.get('code_iata', default) or default
+        dest = flight.get('destination', {}) or {}
+        dest_apt = dest.get('code_iata', default) or default
+        aircraft = flight.get('aircraft_type', default) or default
+        return origin_apt, dest_apt, aircraft
+
+    ## Flights which have identical src, dest, and aircraft can just be cached
+    @staticmethod
+    def _can_cache_flightaware_request(flights: List[Dict]) -> bool:
+        if len(flights) == 0:
+            return False
+
+        comps = [".".join(HybridAPI._parse_fa_components_from_flight(x, '')) for x in flights]
+        init = comps[0]
+        return all(x == init for x in comps)
+
     def _enrich_with_flightaware(self, icao24: str):
         """Enrich an aircraft with FlightAware data."""
         try:
@@ -275,12 +296,17 @@ class HybridAPI:
             }
 
             # Try to get flight info by callsign (flight identifier)
-            # Note: Real implementation would need proper FA API endpoint
-            url = f"https://aeroapi.flightaware.com/aeroapi/flights/{aircraft.opensky.callsign.strip()}"
+            callsign = aircraft.opensky.callsign.strip()
 
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            url = f"https://aeroapi.flightaware.com/aeroapi/flights/{callsign}"
 
-            print(f"fetched: {url}\nresponse: {response.status_code}")
+            response: requests.Response
+            if callsign in self.fa_cache:
+                response = self.fa_cache.get(callsign, None)
+                print(f"using cached response: {callsign}")
+            else:
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                print(f"fetched {callsign}: response: {response.status_code}")
 
             if response.status_code == 200:
                 data = response.json()
@@ -288,24 +314,25 @@ class HybridAPI:
                     return
 
                 flights = data.get('flights', []) or []
-                flights.append({})
-                flight = next(filter(lambda x: "En Route" in x.get('status', " ") or " ", flights), flights[0])
 
                 # print(f"parsed {len(flights)} flights")
+                if callsign not in self.fa_cache and HybridAPI._can_cache_flightaware_request(flights):
+                    self.fa_cache[callsign] = response
 
-                origin = flight.get('origin', {}) or {}
-                origin_apt = origin.get('code_iata', None)
-                dest = flight.get('destination', {}) or {}
-                dest_apt = dest.get('code_iata', None)
+                flights.append({})
+                # TODO this should be based on takeoff time with our cached options
+                flight = next(filter(lambda x: "En Route" in x.get('status', " ") or " ", flights), flights[0])
 
+                (origin_apt, dest_apt, aircraft) = self._parse_fa_components_from_flight(flight)
                 # print("parsed origin and dest")
+
 
                 # Parse FlightAware response and create FlightAwareData
                 # Note: Actual field names depend on FA API response structure
                 fa_data = FlightAwareData(
                     airline=flight.get('operator_iata', None),
                     flight_number=flight.get('flight_number', None),
-                    aircraft_type=flight.get('aircraft_type', None),
+                    aircraft_type=aircraft,
                     origin_airport=origin_apt,
                     destination_airport=dest_apt,
                     estimated_arrival_time=self._parse_fa_datetime(flight.get('estimated_arrival', '')),

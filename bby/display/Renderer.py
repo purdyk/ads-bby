@@ -103,7 +103,7 @@ class DisplayCompositor:
         # Sort by distance
         aircraft_with_positions.sort(key=lambda x: x[2])
 
-        for each in aircraft_with_positions[:4]:
+        for each in aircraft_with_positions[:2]:
             if each[0].flightaware is None and each[0].opensky.callsign:
                 self.request_enrich(each[0].opensky.icao24)
 

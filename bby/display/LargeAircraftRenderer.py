@@ -38,7 +38,7 @@ class LargeAircraftRenderer(AircraftRenderer):
         distance_str = self.format_distance(distance)
         speed_str = f"{int(aircraft.get_speed_knots() or 0)}kt" if aircraft.get_speed_knots() else "--kt"
 
-        line1a = f"{flight_name[:6]}"
+        line1a = f"{flight_name}"
         line1b = f"{distance_str}"
         off = graphics.DrawText(canvas, self.font_large, x, y + self.first_offset, text_color, line1a)
         off += graphics.DrawText(canvas, self.font_large, x + off + 2, y + self.first_offset, text_color, line1b)
