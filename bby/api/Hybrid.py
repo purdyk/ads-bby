@@ -1,6 +1,5 @@
 import threading
 import time
-from functools import reduce
 from typing import Dict, List, Optional, Callable, Tuple
 from datetime import datetime, timedelta, timezone
 import requests
@@ -12,6 +11,7 @@ from json import load
 from bby.models.BbyCfg import BBYConfig
 from bby.models.Aircraft import Aircraft, OpenSkyData, FlightAwareData
 from opensky_api import OpenSkyApi
+from bby.api.DumpSlurp import DumpSlurp
 # from bby.models.Position import Position
 
 # Hybrid API driver
@@ -38,13 +38,27 @@ class HybridAPI:
         self.home = config.home.position
         self.bbox = self.calculate_bounding_box()
 
-        # Initialize OpenSky API
-        self.opensky_api = OpenSkyApi(
-            # username=config.api.opensky_username,
-            # password=config.api.opensky_password,
-            client_id=config.api.opensky_client_id,
-            client_secret=config.api.opensky_client_secret
-        )
+        # Initialize OpenSky API (if not using dump1090 exclusively)
+        self.opensky_api = None
+        if not config.api.use_dump1090_only:
+            self.opensky_api = OpenSkyApi(
+                # username=config.api.opensky_username,
+                # password=config.api.opensky_password,
+                client_id=config.api.opensky_client_id,
+                client_secret=config.api.opensky_client_secret
+            )
+
+        # Initialize DumpSlurp (dump1090) if configured
+        self.dump_slurp: Optional[DumpSlurp] = None
+        if config.api.dump1090_host and config.api.dump1090_port:
+            self.dump_slurp = DumpSlurp(
+                host=config.api.dump1090_host,
+                port=config.api.dump1090_port,
+                expire_seconds=config.api.aircraft_expire_seconds,
+                state_callback=self._process_dump1090_states,
+                state_callback_interval=1.0
+            )
+        self.dump_slurp_last_announce = 0
 
         # Aircraft tracking
         self.current_aircraft: Dict[str, Aircraft] = {}  # icao24 -> Aircraft
@@ -88,9 +102,15 @@ class HybridAPI:
 
         self.running = True
 
-        # Start OpenSky polling thread
-        self.opensky_thread = threading.Thread(target=self._opensky_poll_loop, daemon=True)
-        self.opensky_thread.start()
+        # Start DumpSlurp if configured
+        if self.dump_slurp:
+            print("Starting dump1090 data collection...")
+            self.dump_slurp.start()
+
+        # Start OpenSky polling thread (if not using dump1090)
+        if self.opensky_api:
+            self.opensky_thread = threading.Thread(target=self._opensky_poll_loop, daemon=True)
+            self.opensky_thread.start()
 
         # Start FlightAware enrichment thread if API key is provided
         # Instead of doing this for every aircraft, lets only do it when we display them
@@ -102,6 +122,10 @@ class HybridAPI:
     def stop(self):
         """Stop the hybrid API service."""
         self.running = False
+
+        # Stop DumpSlurp if running
+        if self.dump_slurp:
+            self.dump_slurp.stop()
 
         if self.opensky_thread:
             self.opensky_thread.join(timeout=5)
@@ -140,49 +164,71 @@ class HybridAPI:
 
     def _process_opensky_states(self, states):
         """Process state vectors from OpenSky API."""
+        out_states = []
+        for state in states:
+            # Create OpenSkyData from state vector
+            opensky_data = OpenSkyData(
+                icao24=state.icao24,
+                callsign=state.callsign,
+                origin_country=state.origin_country,
+                time_position=state.time_position,
+                last_contact=state.last_contact,
+                longitude=state.longitude,
+                latitude=state.latitude,
+                geo_altitude=state.geo_altitude,
+                baro_altitude=state.baro_altitude,
+                on_ground=state.on_ground,
+                velocity=state.velocity,
+                true_track=state.true_track,
+                vertical_rate=state.vertical_rate,
+                squawk=state.squawk,
+                spi=state.spi,
+                position_source=state.position_source,
+                # Category might not be available in all API versions
+                category=getattr(state, 'category', 0)
+            )
+
+            out_states.append(opensky_data)
+
+        print(f"Processed OpenSky states: {len(out_states)}")
+        self._merge_osky_states(out_states)
+
+    def _process_dump1090_states(self, aircraft_list: List[OpenSkyData]):
+        """Process aircraft states from dump1090 via DumpSlurp."""
+        now = datetime.now().timestamp()
+
+        if now - self.dump_slurp_last_announce > 30:
+            self.dump_slurp_last_announce = now
+            print(f"Processed dump1090 states: {len(aircraft_list)}")
+
+        self._merge_osky_states(aircraft_list)
+
+    def _merge_osky_states(self, states: List[OpenSkyData]):
         with self.lock:
-            # Track which aircraft are still present
+            # Track which aircraft are present in this update
             current_icao24s = set()
 
             for state in states:
                 icao24 = state.icao24
                 current_icao24s.add(icao24)
 
-                # Create OpenSkyData from state vector
-                opensky_data = OpenSkyData(
-                    icao24=state.icao24,
-                    callsign=state.callsign,
-                    origin_country=state.origin_country,
-                    time_position=state.time_position,
-                    last_contact=state.last_contact,
-                    longitude=state.longitude,
-                    latitude=state.latitude,
-                    geo_altitude=state.geo_altitude,
-                    baro_altitude=state.baro_altitude,
-                    on_ground=state.on_ground,
-                    velocity=state.velocity,
-                    true_track=state.true_track,
-                    vertical_rate=state.vertical_rate,
-                    squawk=state.squawk,
-                    spi=state.spi,
-                    position_source=state.position_source,
-                    # Category might not be available in all API versions
-                    category=getattr(state, 'category', 0)
-                )
-
                 # Update or create aircraft
                 if icao24 in self.current_aircraft:
-                    # Update existing aircraft's OpenSky data
-                    self.current_aircraft[icao24].opensky = opensky_data
+                    # Only update if newer data
+                    current = self.current_aircraft[icao24]
+                    if state.last_contact > current.opensky.last_contact:
+                        current.opensky = state
                 else:
-                    # Create new aircraft
-                    aircraft = Aircraft(opensky=opensky_data)
-                    self.current_aircraft[icao24] = aircraft
+                    # Create new aircraft (DumpSlurp provides Aircraft objects)
+                    self.current_aircraft[icao24] = Aircraft(opensky=state)
 
-            # Remove aircraft that are no longer in range
+            # Remove any stale aircraft
+            now = datetime.now().timestamp()
+            expire_seconds = self.config.api.aircraft_expire_seconds
             for icao24 in list(self.current_aircraft.keys()):
                 if icao24 not in current_icao24s:
-                    del self.current_aircraft[icao24]
+                    if now - self.current_aircraft[icao24].opensky.last_contact > expire_seconds:
+                        del self.current_aircraft[icao24]
 
             # Notify observers
             self._notify_observers()

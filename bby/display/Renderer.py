@@ -71,7 +71,7 @@ class DisplayCompositor:
         options.chain_length = 1
         options.parallel = 1
         options.pwm_bits = 11
-        options.brightness = 80
+        options.brightness = config.brightness
         options.pwm_lsb_nanoseconds = 130
         options.hardware_mapping = config.mapping
 

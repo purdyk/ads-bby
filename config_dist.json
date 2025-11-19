@@ -2,6 +2,7 @@
   "display": {
     "width": 64,
     "height": 32,
+    "brightness": 80,
     "mapping": "adafruit-hat",
     "name": "Ads-BBY"
   },
@@ -22,6 +23,10 @@
     "quiet_end": null,
     "quiet_tz": null,
     "opensky_refresh_interval": 30,
-    "max_flightaware_requests_per_minute": 10
+    "max_flightaware_requests_per_minute": 10,
+    "use_dump1090_only": false,
+    "dump1090_host": "localhost",
+    "dump1090_port": 30003,
+    "aircraft_expire_seconds": 900
   }
 }

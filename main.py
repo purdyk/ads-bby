@@ -31,7 +31,6 @@ def main():
         enrich=enrich)
 
     def on_api_update(new_aircraft: List[Aircraft]) -> None:
-        print(f"found {len(new_aircraft)}")
         compositor.aircraft = new_aircraft
 
     api.add_observer(on_api_update)
