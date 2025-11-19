@@ -13,7 +13,7 @@
   },
 
   "api": {
-    "radius_km": 50.0,
+    "radius_km": 100.0,
     "opensky_username": null,
     "opensky_password": null,
     "opensky_client_id": null,
