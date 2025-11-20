@@ -27,6 +27,6 @@
     "use_dump1090_only": false,
     "dump1090_host": "localhost",
     "dump1090_port": 30003,
-    "aircraft_expire_seconds": 900
+    "aircraft_expire_seconds": 300
   }
 }

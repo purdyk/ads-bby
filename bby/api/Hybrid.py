@@ -367,7 +367,7 @@ class HybridAPI:
 
                 flights.append({})
                 # TODO this should be based on takeoff time with our cached options
-                flight = next(filter(lambda x: "En Route" in x.get('status', " ") or " ", flights), flights[0])
+                flight = next(filter(lambda x: "En Route" in x.get('status', " "), flights), flights[0])
 
                 (origin_apt, dest_apt, aircraft) = self._parse_fa_components_from_flight(flight)
                 # print("parsed origin and dest")
