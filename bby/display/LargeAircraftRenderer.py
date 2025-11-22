@@ -44,5 +44,13 @@ class LargeAircraftRenderer(AircraftRenderer):
         off += graphics.DrawText(canvas, self.font_large, x + off + 2, y + self.first_offset, text_color, line1b)
 
         # Line 2: Aircraft type, Origin, Destination, V-rate
-        line2 = f"{aircraft.get_type()[:7]}:{aircraft.get_origin_airport()}-{aircraft.get_dest_airport()}:{speed_str}"
-        graphics.DrawText(canvas, self.font_small, x, y + self.second_offset, text_color, line2)
+        line2a = f"{aircraft.get_type()[:7]}"
+        line2b = f"{aircraft.get_origin_airport()}-{aircraft.get_dest_airport()}"
+        line2c = f"{speed_str}"
+        off = graphics.DrawText(canvas, self.font_small, x, y + self.second_offset, text_color, line2a) + 2
+        # graphics.DrawText(canvas, self.font_small, x + off - 1, y + self.second_offset, text_color, ":")
+        canvas.SetPixel(x + off - 2, y + self.second_offset - 3, text_color.red, text_color.green, text_color.blue)
+        off += graphics.DrawText(canvas, self.font_small, x + off, y + self.second_offset, text_color, line2b) + 2
+        # graphics.DrawText(canvas, self.font_small, x + off - 1, y + self.second_offset, text_color, ":")
+        canvas.SetPixel(x + off - 2, y + self.second_offset - 3, text_color.red, text_color.green, text_color.blue)
+        off += graphics.DrawText(canvas, self.font_small, x + off, y + self.second_offset, text_color, line2c) + 2

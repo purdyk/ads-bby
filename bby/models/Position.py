@@ -52,7 +52,7 @@ class Position:
         bearing_to_point = self.calculate_bearing_to(other)
 
         # Calculate angular difference
-        angle_diff = abs((bearing_to_point - self.heading + 180) % 360 - 180)
+        angle_diff = abs(bearing_to_point % 360 - 180)
 
         # If angle difference is less than threshold, aircraft is approaching
         return angle_diff < threshold_degrees

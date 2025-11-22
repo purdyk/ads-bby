@@ -171,7 +171,7 @@ class HybridAPI:
                 icao24=state.icao24,
                 callsign=state.callsign,
                 origin_country=state.origin_country,
-                time_position=state.time_position,
+                last_position=state.time_position,
                 last_contact=state.last_contact,
                 longitude=state.longitude,
                 latitude=state.latitude,
@@ -217,7 +217,7 @@ class HybridAPI:
                     # Only update if newer data
                     current = self.current_aircraft[icao24]
                     if state.last_contact > current.opensky.last_contact:
-                        current.opensky = state
+                        current.opensky.merge(state)
                 else:
                     # Create new aircraft (DumpSlurp provides Aircraft objects)
                     self.current_aircraft[icao24] = Aircraft(opensky=state)
@@ -363,6 +363,7 @@ class HybridAPI:
 
                 # print(f"parsed {len(flights)} flights")
                 if callsign not in self.fa_cache and HybridAPI._can_cache_flightaware_request(flights):
+                    print(f"caching flight: {callsign}")
                     self.fa_cache[callsign] = response
 
                 flights.append({})

@@ -93,9 +93,14 @@ class DisplayCompositor:
         aircraft_with_positions: List[Tuple[Aircraft, Position, float]] = []
 
         for aircraft in aircraft_list:
-            if aircraft.opensky.last_contact:
-                seconds_elapsed = current_time - aircraft.opensky.last_contact
-                position = aircraft.extrapolate_position(seconds_elapsed)
+            if aircraft.opensky.last_position:
+                seconds_elapsed = current_time - aircraft.opensky.last_position
+
+                # Live data from ADS-B should not be extrapolated
+                if seconds_elapsed > 3:
+                    position = aircraft.extrapolate_position(seconds_elapsed)
+                else:
+                    position = aircraft.get_position()
                 if position:
                     distance = self.home.calculate_distance(position)
                     aircraft_with_positions.append((aircraft, position, distance))

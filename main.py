@@ -16,9 +16,9 @@ def main():
     # It should set up threads for loading and updating aircraft information from the hybrid API
     # It should pass these into the rendering system at an appropriate refresh interval
     # It should afford the rendering system the resources to draw frequent updates to the display
-    config = load(open("config.json"))
+    cfg = load(open("config.json"))
 
-    config = BBYConfig(config)
+    config = BBYConfig(cfg)
     api = HybridAPI(config)
 
     def enrich(icao24: str) -> None:

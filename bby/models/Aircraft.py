@@ -36,7 +36,10 @@ class OpenSkyData:
     origin_country: str = ""
 
     # Timing information
-    time_position: Optional[int] = None
+
+    # The last timestamp that had positional information
+    last_position: Optional[int] = None
+    # The last timestamp where any data was received
     last_contact: int = 0
 
     # Position data
@@ -62,6 +65,42 @@ class OpenSkyData:
     position_source: int = 0
     category: int = 0  # Aircraft category (0-20)
 
+    # Bookkeeping
+    # source 0 for opensky
+    # source 1 for ADS-B
+    source: int = 0
+    aircraft_type: Optional[str] = None
+
+    def merge(self, other: "OpenSkyData") -> "OpenSkyData":
+        # Update fields based on what's available in this message
+        if other.callsign:
+            self.callsign = other.callsign
+
+        if other.baro_altitude is not None:
+            self.baro_altitude = other.baro_altitude
+
+        if other.velocity is not None:
+            self.velocity = other.velocity
+        if other.true_track is not None:
+            self.true_track = other.true_track
+        if other.vertical_rate is not None:
+            self.vertical_rate = other.vertical_rate
+
+        if other.latitude is not None:
+            self.latitude = other.latitude
+        if other.longitude is not None:
+            self.longitude = other.longitude
+        if other.squawk:
+            self.squawk = other.squawk
+        if other.aircraft_type is not None:
+            self.aircraft_type = other.aircraft_type
+
+        if other.last_position is not None:
+            self.last_position = other.last_position
+        if other.last_contact is not None:
+            self.last_contact = other.last_contact
+
+        return self
 
 @dataclass
 class FlightAwareData:
@@ -135,6 +174,9 @@ class Aircraft:
         else:
             return self.get_aircraft_category_name()
 
+    def get_position(self) -> Position:
+        return Position(latitude = self.opensky.latitude, longitude= self.opensky.longitude, velocity = self.opensky.velocity, heading = self.opensky.true_track)
+
     def extrapolate_position(self, seconds_elapsed: float) -> Optional[Position]:
         """
         Extrapolate current position based on last known position, speed, and heading.
@@ -187,6 +229,8 @@ class Aircraft:
     def get_type(self) -> str:
         if self.flightaware and self.flightaware.aircraft_type:
             return self.flightaware.aircraft_type
+        if self.opensky.aircraft_type:
+            return self.opensky.aircraft_type.strip()
         else:
             return self.get_aircraft_category_name()
 
