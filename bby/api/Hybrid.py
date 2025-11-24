@@ -242,6 +242,7 @@ class HybridAPI:
                     unenriched = [
                         icao24 for icao24 in self.fa_queue
                         if self.current_aircraft[icao24].flightaware is None
+                        and self.current_aircraft[icao24].opensky
                         and self.current_aircraft[icao24].opensky.callsign  # Only if we have a callsign
                     ]
 
@@ -255,7 +256,9 @@ class HybridAPI:
                         continue
 
                     # Get FlightAware data
-                    self.fa_queue.remove(icao24)
+                    if icao24 in self.fa_queue:
+                        self.fa_queue.remove(icao24)
+
                     self._enrich_with_flightaware(icao24)
 
                 time.sleep(1)  # Brief pause between enrichment attempts
