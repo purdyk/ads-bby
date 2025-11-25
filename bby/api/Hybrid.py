@@ -79,21 +79,7 @@ class HybridAPI:
         self.fa_queue: List[str] = []
 
     def calculate_bounding_box(self) -> tuple:
-        """Calculate bounding box from home position and radius."""
-        # Earth radius in km
-        R = 6371.0
-
-        # Convert radius to degrees (approximation)
-        lat_delta = self.config.api.radius_km / R * (180 / math.pi)
-        lon_delta = self.config.api.radius_km / (R * math.cos(math.radians(self.config.home.latitude))) * (180 / math.pi)
-
-        min_lat = self.config.home.latitude - lat_delta
-        max_lat = self.config.home.latitude + lat_delta
-        min_lon = self.config.home.longitude - lon_delta
-        max_lon = self.config.home.longitude + lon_delta
-
-        # OpenSky expects (min_lat, max_lat, min_lon, max_lon)
-        return min_lat, max_lat, min_lon, max_lon
+        return self.config.home.position.bbox_around(self.config.api.radius_km)
 
     def start(self):
         """Start the hybrid API service."""

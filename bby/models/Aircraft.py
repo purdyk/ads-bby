@@ -38,9 +38,9 @@ class OpenSkyData:
     # Timing information
 
     # The last timestamp that had positional information
-    last_position: Optional[int] = None
+    last_position: Optional[float] = None
     # The last timestamp where any data was received
-    last_contact: int = 0
+    last_contact: float = 0
 
     # Position data
     longitude: Optional[float] = None

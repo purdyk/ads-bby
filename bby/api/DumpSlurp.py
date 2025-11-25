@@ -383,11 +383,14 @@ class DumpSlurp:
             logged_date = fields[8].strip() if len(fields) > 8 else ""
             logged_time = fields[9].strip() if len(fields) > 9 else ""
 
-            # Parse the logged timestamp (used for last_contact and time_position)
-            logged_timestamp = self._parse_timestamp(logged_date, logged_time)
-            if logged_timestamp is None:
+            # Parse the generated / logged timestamp (used for last_contact and time_position)
+            timestamp = self._parse_timestamp(generated_date, generated_time)
+            if timestamp is None:
+                self._parse_timestamp(logged_date, logged_time)
+
+            if timestamp is None:
                 # Fallback to current time if parsing fails
-                logged_timestamp = int(datetime.now().timestamp())
+                timestamp = int(datetime.now().timestamp())
 
             # Parse fields (with handling for empty values)
             callsign = fields[10].strip() if len(fields) > 10 and fields[10].strip() else None
@@ -418,7 +421,7 @@ class DumpSlurp:
                     opensky.aircraft_type = self.get_aircraft_type_from_icao24(hex_ident)
 
                 # Update last_contact with logged timestamp (always)
-                opensky.last_contact = logged_timestamp
+                opensky.last_contact = timestamp
 
                 # Update fields based on what's available in this message
                 if callsign:
@@ -443,7 +446,7 @@ class DumpSlurp:
 
                 # Update time_position when we get position data (using logged timestamp)
                 if lat is not None and lon is not None:
-                    opensky.last_position = logged_timestamp
+                    opensky.last_position = timestamp
 
         except Exception as e:
             print(f"Error parsing message: {e}")
@@ -461,7 +464,7 @@ class DumpSlurp:
             return None
 
     @staticmethod
-    def _parse_timestamp(date_str: str, time_str: str) -> Optional[int]:
+    def _parse_timestamp(date_str: str, time_str: str) -> Optional[float]:
         """
         Parse dump1090 date and time strings into a Unix timestamp.
 

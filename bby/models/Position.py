@@ -56,3 +56,21 @@ class Position:
 
         # If angle difference is less than threshold, aircraft is approaching
         return angle_diff < threshold_degrees
+
+    def bbox_around(self, range_km: float) -> tuple:
+        """Calculate bounding box from this position and radius."""
+        # Earth radius in km
+        R = 6371.0
+
+        # Convert radius to degrees (approximation)
+        lat_delta = range_km / R * (180 / math.pi)
+        lon_delta = range_km / (R * math.cos(math.radians(self.latitude))) * (
+                        180 / math.pi)
+
+        min_lat = self.latitude - lat_delta
+        max_lat = self.latitude + lat_delta
+        min_lon = self.longitude - lon_delta
+        max_lon = self.longitude + lon_delta
+
+        # OpenSky expects (min_lat, max_lat, min_lon, max_lon)
+        return min_lat, max_lat, min_lon, max_lon

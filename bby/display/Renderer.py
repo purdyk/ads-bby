@@ -5,6 +5,7 @@ from typing import List, Tuple, Callable
 from rgbmatrix import graphics, RGBMatrix, RGBMatrixOptions, FrameCanvas
 
 from bby.display.AircraftGraphRenderer import AircraftGraphRenderer
+from bby.display.AircraftMapRenderer import AircraftMapRenderer
 from bby.display.LargeAircraftRenderer import LargeAircraftRenderer
 from bby.display.PositionAnimator import PositionAnimator
 from bby.display.ScreenRenderer import ScreenRenderer
@@ -62,6 +63,8 @@ class DisplayCompositor:
         self.animator = PositionAnimator()
         self.aircraft = []
 
+        self.map_renderer = AircraftMapRenderer(home = home, width = self.width, height = self.height, range_km=bconfig.api.radius_km)
+
         # Renderers should load their own fonts
 
         # Init the matrix with width and height
@@ -97,16 +100,23 @@ class DisplayCompositor:
                 seconds_elapsed = current_time - aircraft.opensky.last_position
 
                 # Live data from ADS-B should not be extrapolated
-                if seconds_elapsed > 3:
-                    position = aircraft.extrapolate_position(seconds_elapsed)
-                else:
-                    position = aircraft.get_position()
+                # if seconds_elapsed > 3:
+                position = aircraft.extrapolate_position(seconds_elapsed)
+                # else:
+                #     position = aircraft.get_position()
                 if position:
                     distance = self.home.calculate_distance(position)
                     aircraft_with_positions.append((aircraft, position, distance))
 
         # Sort by distance
         aircraft_with_positions.sort(key=lambda x: x[2])
+
+        if current_time % 30 > 15:
+            self.render_map(canvas, current_time, aircraft_with_positions)
+        else:
+            self.render_text_and_graph(canvas, current_time, aircraft_with_positions)
+
+    def render_text_and_graph(self, canvas: FrameCanvas, current_time: float, aircraft_with_positions: List[Tuple[Aircraft, Position, float]]) -> None:
 
         # Load extra details for closest N aircraft
         for each in aircraft_with_positions[:1]:
@@ -130,6 +140,10 @@ class DisplayCompositor:
 
         # Render the bottom row of aircraft
         self.animator.render(canvas, aircraft_with_positions, self.small_renderer, current_time)
+
+    def render_map(self, canvas: FrameCanvas, current_time: float, aircraft_with_positions: List[Tuple[Aircraft, Position, float]]) -> None:
+        self.map_renderer.render(canvas, 0, 0, aircraft_with_positions)
+
 
     def run(self):
         # Maybe init a few things
