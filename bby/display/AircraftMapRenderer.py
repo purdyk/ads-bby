@@ -26,13 +26,13 @@ class AircraftMapRenderer(AircraftRenderer):
     def render(self, canvas: FrameCanvas, x: int, y: int, aircraft: List[Tuple[Aircraft, Position, float]]) -> None:
 
         (home_lon, home_lat) = self.get_local_xy(self.home)
-        self.draw_interpolated(canvas, home_lon, home_lat, self.home_color)
+        self.draw_antialiased(canvas, home_lon, home_lat, self.home_color)
 
         for craft in aircraft:
             # print(f"rendering {craft[0].opensky.icao24} at {pos_lon}, {pos_lat}")
             (pos_lon, pos_lat) = self.get_local_xy(craft[1])
 
-            self.draw_interpolated(canvas, pos_lon, pos_lat, self.aircraft_color)
+            self.draw_antialiased(canvas, pos_lon, pos_lat, self.aircraft_color)
             # canvas.SetPixel(pos_lon, pos_lat, 255, 255, 255)
 
     def get_local_xy(self, position: Position) -> Tuple[float, float]:
@@ -50,13 +50,36 @@ class AircraftMapRenderer(AircraftRenderer):
 
         return pos_lon, pos_lat
 
-    def draw_interpolated(self, canvas: FrameCanvas, x: float, y: float, color: graphics.Color) -> None:
-        for xx in range(0, 2):
-            for yy in range(0, 2):
-                out_x = math.floor(x + xx)
-                out_y = math.floor(y + yy)
-                x_comp = 1 - abs(x - out_x)
-                y_comp = 1 - abs(y - out_y)
-                xy_comp = (x_comp + y_comp) / 2
-                # print(f"setting: {x} -> {out_x}, {y} -> {out_y}, {xy_comp}")
-                canvas.SetPixel(out_x, out_y, color.red * xy_comp, color.green * xy_comp, color.blue * xy_comp)
+    def draw_antialiased(self, canvas: FrameCanvas, x: float, y: float, color: graphics.Color) -> None:
+        """
+        Draws an anti-aliased point by distributing intensity across up to 4 pixels
+        using bilinear interpolation based on the fractional position.
+        """
+        # Get the base pixel coordinates
+        base_x = math.floor(x)
+        base_y = math.floor(y)
+
+        # Calculate fractional offsets (0.0 to 1.0)
+        fx = x - base_x
+        fy = y - base_y
+
+        # Distribute intensity across 4 neighboring pixels using bilinear interpolation
+        # Each pixel's weight is the product of its distance factors
+        weights = [
+            ((1 - fx) * (1 - fy), 0, 0),  # Top-left
+            (fx * (1 - fy), 1, 0),         # Top-right
+            ((1 - fx) * fy, 0, 1),         # Bottom-left
+            (fx * fy, 1, 1)                # Bottom-right
+        ]
+
+        for weight, dx, dy in weights:
+            if weight > 0.001:  # Skip negligible contributions
+                pixel_x = base_x + dx
+                pixel_y = base_y + dy
+
+                canvas.SetPixel(
+                    pixel_x, pixel_y,
+                    int(color.red * weight),
+                    int(color.green * weight),
+                    int(color.blue * weight)
+                )
