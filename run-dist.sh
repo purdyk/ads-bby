@@ -1,7 +1,10 @@
 #!/bin/sh 
 
-git pull
+## Allow the network to start up for a smidge longer.
+echo "awaiting network"
+sleep 5
 
-scp purd.me:ads-bby/config_terra_bella.json config.json
+git pull
+scp <REMOTE_HOST>:path/to/config.json config.json
 
 uv run main.py
