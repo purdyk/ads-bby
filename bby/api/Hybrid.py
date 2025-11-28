@@ -225,12 +225,21 @@ class HybridAPI:
             try:
                 with self.lock:
                     # Find aircraft that need FlightAware data
+                    expired = [
+                        icao24 for icao24 in self.fa_queue if icao24 not in self.current_aircraft
+                    ]
+
+                    for each in expired:
+                        self.fa_queue.remove(each)
+
                     unenriched = [
                         icao24 for icao24 in self.fa_queue
-                        if self.current_aircraft[icao24].flightaware is None
+                        if icao24 in self.current_aircraft
+                        and self.current_aircraft[icao24].flightaware is None
                         and self.current_aircraft[icao24].opensky
                         and self.current_aircraft[icao24].opensky.callsign  # Only if we have a callsign
                     ]
+
 
                 for icao24 in unenriched:
                     if not self.running:
