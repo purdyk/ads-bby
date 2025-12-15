@@ -49,18 +49,21 @@ class DisplayCompositor:
         self.width = config.width
         self.height = config.height
         self.home =  home
-        self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2))
-        self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2))
+        self.large_renderer = LargeAircraftRenderer(home = home, width = self.width, height = int(self.height / 2), cfg = config)
+        self.small_renderer = SmallAircraftRenderer(home = home, width = int(self.width / 4), height = int(self.height / 2), cfg = config)
         self.request_enrich = enrich
+        self.mod_alt = config.map_duration + config.grid_duration
+        self.alt_switch = config.grid_duration
+
 
         # API radius is actually an x+y range, farthest possible is a hypotenuse
         # So graph range should reflect this
         hyp = ((bconfig.api.radius_km**2)*2)**0.5
 
-        self.graph_close = AircraftGraphRenderer(home = home, width = self.width, height = 2, range_km=hyp / 2)
-        self.graph_far = AircraftGraphRenderer(home = home, width = self.width, height = 2, range_km=hyp)
+        self.graph_close = AircraftGraphRenderer(home = home, width = self.width, height = config.track_size, range_km=hyp / 2)
+        self.graph_far = AircraftGraphRenderer(home = home, width = self.width, height = config.track_size, range_km=hyp)
         self.screensaver = ScreenRenderer(home = home, width = self.width, height = self.height, name = config.name)
-        self.animator = PositionAnimator()
+        self.animator = PositionAnimator(count = config.box_count)
         self.aircraft = []
 
         self.map_renderer = AircraftMapRenderer(home = home, width = self.width, height = self.height, range_km=bconfig.api.radius_km)
@@ -111,16 +114,21 @@ class DisplayCompositor:
         # Sort by distance
         aircraft_with_positions.sort(key=lambda x: x[2])
 
-        if current_time % 30 > 15:
+        if current_time % self.mod_alt > self.alt_switch:
             self.render_map(canvas, current_time, aircraft_with_positions)
         else:
             self.render_text_and_graph(canvas, current_time, aircraft_with_positions)
 
     def render_text_and_graph(self, canvas: FrameCanvas, current_time: float, aircraft_with_positions: List[Tuple[Aircraft, Position, float]]) -> None:
 
-        # Load extra details for closest N aircraft
+        # Load extra details for closest aircraft that is
+        # well off the ground
         for each in aircraft_with_positions[:1]:
-            if each[0].flightaware is None and each[0].opensky.callsign:
+            if (each[0].flightaware is None
+                    and each[0].opensky.callsign
+                    and each[0].opensky.baro_altitude is not None
+                    and each[0].opensky.baro_altitude > 460
+            ):
                 self.request_enrich(each[0].opensky.icao24)
 
         # This is cheap, it only renders everything in-place
@@ -134,12 +142,15 @@ class DisplayCompositor:
                 canvas, 0, 0, current_time
             )
 
+        y = self.large_renderer.bottom + 1
         # Render a graph in the middle
-        self.graph_close.render(canvas, 0, 14, aircraft_with_positions)
-        self.graph_far.render(canvas, 0, 17, aircraft_with_positions)
+        self.graph_close.render(canvas, 0, y, aircraft_with_positions)
+        y += self.graph_close.height + 1
+        self.graph_far.render(canvas, 0, y, aircraft_with_positions)
+        y += self.graph_far.height + 1
 
         # Render the bottom row of aircraft
-        self.animator.render(canvas, aircraft_with_positions, self.small_renderer, current_time)
+        self.animator.render(canvas, aircraft_with_positions, self.small_renderer, y, current_time)
 
     def render_map(self, canvas: FrameCanvas, current_time: float, aircraft_with_positions: List[Tuple[Aircraft, Position, float]]) -> None:
         self.map_renderer.render(canvas, 0, 0, aircraft_with_positions)

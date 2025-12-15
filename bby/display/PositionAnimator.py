@@ -39,12 +39,12 @@ class AnimationInformation:
             return x_out
 
 class PositionAnimator:
-    def __init__(self):
+    def __init__(self, count: int = 3):
         self.positions: dict[str, AnimationInformation] = {}
-        self.y_pos = 19
+        self.count = count
         self.cleanup = 0.0
 
-    def render(self, canvas: FrameCanvas, aircraft: List[Tuple[Aircraft, Position, float]], renderer: SmallAircraftRenderer, current_time: float) -> None:
+    def render(self, canvas: FrameCanvas, aircraft: List[Tuple[Aircraft, Position, float]], renderer: SmallAircraftRenderer, y: int, current_time: float) -> None:
         if current_time > self.cleanup:
             self.cleanup = current_time + 10
             included = [x[0].opensky.icao24 for x in aircraft]
@@ -53,8 +53,9 @@ class PositionAnimator:
                 if each not in included:
                     del self.positions[each]
 
-        # Note we're drawing 2 offscreen aircraft
-        for i in range(0, 6):
+        # Note we're "drawing" 2 offscreen aircraft
+        # for the sake of animating them in
+        for i in range(0, self.count + 2):
             if i == len(aircraft):
                 break
 
@@ -75,4 +76,4 @@ class PositionAnimator:
 
             renderer.render(
                 info[0], info[1], info[2],canvas,
-                current_info.get_x(current_time), self.y_pos, current_time)
+                current_info.get_x(current_time), y, current_time)

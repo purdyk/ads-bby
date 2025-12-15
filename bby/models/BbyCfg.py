@@ -10,6 +10,12 @@ class DisplayConfig:
     mapping: str
     name: str
     brightness: int
+    font_big: str
+    font_small: str
+    track_size: int
+    box_count: int
+    grid_duration: int
+    map_duration: int
 
     def __init__(self, dict: Dict):
         self.width = dict["width"]
@@ -17,7 +23,12 @@ class DisplayConfig:
         self.mapping = dict["mapping"]
         self.name = dict["name"]
         self.brightness = dict["brightness"]
-
+        self.font_big = dict.get("font_big") or "6x10.bdf"
+        self.font_small = dict.get("font_small") or "4x6.bdf"
+        self.track_size = dict.get("track_size") or 2
+        self.box_count = dict.get("box_count") or 4
+        self.grid_duration = 15
+        self.map_duration = 15
 
 @dataclass
 class HomeConfig:

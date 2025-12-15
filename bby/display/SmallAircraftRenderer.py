@@ -2,18 +2,19 @@ from rgbmatrix import graphics, FrameCanvas
 
 from bby.display.AircraftRenderer import AircraftRenderer
 from bby.models.Aircraft import Aircraft
+from bby.models.BbyCfg import DisplayConfig
 from bby.models.Position import Position
 
 
 class SmallAircraftRenderer(AircraftRenderer):
     """Renderer for secondary aircraft in 16x16 pixel grids."""
 
-    def __init__(self, home: Position, width: int = 16, height: int = 16):
+    def __init__(self, home: Position, width: int = 16, height: int = 16, cfg: DisplayConfig = None):
         super().__init__(home, width, height)
         try:
             self.font = graphics.Font()
-            self.font.LoadFont("bby/fonts/4x6.bdf")
-            self.font_offset = self.font.height
+            self.font.LoadFont(f"bby/fonts/{cfg.font_small}")
+            self.font_offset = self.font.height - 1
         except:
             print("Failed to load font, yikes")
 
